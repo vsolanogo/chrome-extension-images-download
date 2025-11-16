@@ -25,11 +25,6 @@ export const useCapturedImages = () => {
   useEffect(() => {
     loadImagesFromIndexedDB();
 
-    // Set up interval to refresh data every 3 seconds
-    intervalRef.current = setInterval(() => {
-      loadImagesFromIndexedDB();
-    }, 3000);
-
     // Listen for new images captured in real-time (optional, for immediate updates)
     const messageListener = (message: any) => {
       if (message.type === 'IMAGE_CAPTURED') {
@@ -40,11 +35,8 @@ export const useCapturedImages = () => {
 
     chrome.runtime.onMessage.addListener(messageListener);
 
-    // Clean up interval and listener on unmount
+    // Clean up listener on unmount
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
       chrome.runtime.onMessage.removeListener(messageListener);
     };
   }, []); // Empty dependency array to run only once
@@ -93,17 +85,11 @@ export const useCapturedImages = () => {
     document.body.removeChild(a);
   };
 
-  // Function to refresh images
-  const refreshImages = () => {
-    loadImagesFromIndexedDB();
-  };
-
   return {
     images,
     imageCount,
     deleteImage,
     clearAllImages,
     downloadImage,
-    refreshImages,
   };
 };

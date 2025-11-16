@@ -9,7 +9,7 @@ import { useDownload } from '../hooks/useDownload';
 import { loadAllImages } from '../utils/indexedDBUtils';
 
 export const Popup = () => {
-  const { images, imageCount, deleteImage, clearAllImages, downloadImage, refreshImages } = useCapturedImages();
+  const { images, imageCount, deleteImage, clearAllImages, downloadImage } = useCapturedImages();
   const { downloadAllImagesAsZip: downloadAll, isDownloading } = useDownload();
   const link = 'https://github.com/guocaoyi/create-chrome-ext';
 
@@ -32,7 +32,6 @@ export const Popup = () => {
       <Controls
         onClearAll={clearAllImages}
         onDownloadAll={downloadAllImagesAsZip}
-        onRefresh={refreshImages}
         count={imageCount}
         downloadDisabled={isDownloading}
         showZipInfo={true}

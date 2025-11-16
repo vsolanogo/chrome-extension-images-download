@@ -1,7 +1,6 @@
 interface ControlsProps {
   onClearAll: () => void;
   onDownloadAll: () => void;
-  onRefresh: () => void;
   count: number;
   clearDisabled?: boolean;
   downloadDisabled?: boolean;
@@ -12,7 +11,6 @@ interface ControlsProps {
 export const Controls: React.FC<ControlsProps> = ({
   onClearAll,
   onDownloadAll,
-  onRefresh,
   count,
   clearDisabled = false,
   downloadDisabled = false,
@@ -21,13 +19,6 @@ export const Controls: React.FC<ControlsProps> = ({
 }) => {
   return (
     <div className={`controls ${className}`}>
-      <button
-        onClick={onRefresh}
-        title="Refresh images"
-        className="refresh-btn"
-      >
-        ↻ Refresh
-      </button>
       <button onClick={onClearAll} disabled={clearDisabled || count === 0}>
         Clear All Images
       </button>
