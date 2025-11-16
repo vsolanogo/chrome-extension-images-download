@@ -22,27 +22,24 @@ async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
       return;
     }
 
-    // Fetch image data
+    // Fetch image data as Blob
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.status}`);
     }
 
     const blob = await response.blob();
-    // Convert blob to base64 for storage in IndexedDB
-    const base64Data = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
 
-    // Create image object
+    // Create image object with full blob (thumbnail will be generated in UI)
     const imageObj: IndexedCapturedImage = {
       url,
       tabId,
       timestamp: Date.now(),
-      data: base64Data
+      fullData: blob, // Store as blob
+      // thumbnailData will be generated when needed in UI components
+      fileSize: blob.size, // Store file size as metadata
+      width: undefined, // Will be populated later
+      height: undefined // Will be populated later
     };
 
     // Store in IndexedDB
@@ -57,6 +54,7 @@ async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
         url: imageObj.url,
         tabId: imageObj.tabId,
         timestamp: imageObj.timestamp
+        // Do not send thumbnailData from background since we're not generating it here
       }
     }).catch((error) => {
       // It's okay if no receivers are open

@@ -7,6 +7,12 @@ export interface CapturedImage {
   tabId: number;
   timestamp: number;
   data?: string; // Keep for backwards compatibility but we'll store as base64 in the database
+  fullData?: Blob; // Store the full image as a Blob
+  thumbnailData?: string; // Store thumbnail as base64 for easy display
+  // Optional: metadata about the image
+  width?: number;
+  height?: number;
+  fileSize?: number;
 }
 
 /**
@@ -152,6 +158,49 @@ export async function countImages(): Promise<number> {
 }
 
 /**
+ * Generate thumbnail from blob
+ */
+export async function generateThumbnailFromBlob(blob: Blob, maxWidth = 150, maxHeight = 150): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      // Calculate thumbnail dimensions maintaining aspect ratio
+      let thumbWidth = img.width;
+      let thumbHeight = img.height;
+
+      if (thumbWidth > thumbHeight) {
+        if (thumbWidth > maxWidth) {
+          thumbHeight = thumbHeight * (maxWidth / thumbWidth);
+          thumbWidth = maxWidth;
+        }
+      } else {
+        if (thumbHeight > maxHeight) {
+          thumbWidth = thumbWidth * (maxHeight / thumbHeight);
+          thumbHeight = maxHeight;
+        }
+      }
+
+      canvas.width = thumbWidth;
+      canvas.height = thumbHeight;
+
+      // Draw and get thumbnail as base64
+      ctx?.drawImage(img, 0, 0, thumbWidth, thumbHeight);
+      const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8); // JPEG with 80% quality
+      URL.revokeObjectURL(img.src); // Clean up
+      resolve(thumbnailDataUrl);
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for thumbnail generation'));
+
+    // Load the blob as an image
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+/**
  * Load image data for a specific URL
  */
 export async function loadImageData(url: string): Promise<string | undefined> {
@@ -163,11 +212,81 @@ export async function loadImageData(url: string): Promise<string | undefined> {
 
     req.onsuccess = () => {
       const image = req.result as CapturedImage;
-      resolve(image?.data);
+
+      // If we already have thumbnailData, return it
+      if (image?.thumbnailData) {
+        resolve(image.thumbnailData);
+      }
+      // If we have fullData but no thumbnail, generate one on the fly
+      else if (image?.fullData) {
+        generateThumbnailFromBlob(image.fullData).then(thumbnailData => {
+          // Update the image record with the generated thumbnail
+          const updatedImage: CapturedImage = {
+            ...image,
+            thumbnailData
+          };
+          saveImage(updatedImage).then(() => {
+            resolve(thumbnailData);
+          }).catch(error => {
+            console.error('Failed to save thumbnail to IndexedDB:', error);
+            resolve(thumbnailData); // Still resolve with thumbnail even if save fails
+          });
+        }).catch(error => {
+          console.error('Failed to generate thumbnail:', error);
+          // Fallback to legacy data if available
+          resolve(image?.data);
+        });
+      }
+      // Fallback to legacy data
+      else {
+        resolve(image?.data);
+      }
     };
 
     req.onerror = () => {
       reject(req.error ?? new Error('Failed to load image data'));
+    };
+  });
+}
+
+/**
+ * Load full image as blob URL for download/display
+ */
+export async function loadImageBlob(url: string): Promise<string | undefined> {
+  const db = await initDB();
+  return new Promise<string | undefined>((resolve, reject) => {
+    const tx = db.transaction([STORE_NAME], 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(url);
+
+    req.onsuccess = () => {
+      const image = req.result as CapturedImage;
+      if (image?.fullData) {
+        const blobUrl = URL.createObjectURL(image.fullData);
+        resolve(blobUrl);
+      } else if (image?.data) {
+        // Fallback for legacy images stored as base64
+        try {
+          const byteCharacters = atob(image.data.split(',')[1] || '');
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'image/jpeg' }); // Default to jpeg, could be updated to detect actual type
+          const blobUrl = URL.createObjectURL(blob);
+          resolve(blobUrl);
+        } catch (error) {
+          console.error('Error converting base64 data to blob:', error);
+          resolve(undefined);
+        }
+      } else {
+        resolve(undefined);
+      }
+    };
+
+    req.onerror = () => {
+      reject(req.error ?? new Error('Failed to load image blob'));
     };
   });
 }
