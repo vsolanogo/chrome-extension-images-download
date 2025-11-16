@@ -1,0 +1,42 @@
+{
+  "name": "image-capture-extension",
+  "displayName": "Image Capture Extension",
+  "version": "1.0.0",
+  "author": "",
+  "description": "Captures images from web pages as they are loaded and stores them in Chrome storage for later access.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "chrome-extension",
+    "react",
+    "vite",
+    "create-chrome-ext"
+  ],
+  "engines": {
+    "node": ">=14.18.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "fmt": "prettier --write '**/*.{tsx,ts,json,css,scss,md}'",
+    "zip": "npm run build && node src/zip.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.2.1",
+    "@types/chrome": "^0.1.29",
+    "@types/react": "^18.2.28",
+    "@types/react-dom": "^18.2.13",
+    "@vitejs/plugin-react": "^4.1.0",
+    "gulp": "^5.0.0",
+    "gulp-zip": "^6.0.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.10"
+  }
+}
