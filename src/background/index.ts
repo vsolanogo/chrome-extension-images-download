@@ -124,6 +124,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 });
 
+// Clear all captured images on browser startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Browser started up, clearing all captured images from IndexedDB');
+  clearAllImages()
+    .then(() => {
+      console.log('All images cleared on startup');
+    })
+    .catch(error => {
+      console.error('Error clearing images on startup:', error);
+    });
+});
+
 // Log startup message after everything is set up
 loadAllImages()
   .then(images => {
