@@ -8,7 +8,6 @@ interface ImageItemProps {
   showUrl?: boolean;
   urlLength?: number;
   className?: string;
-  layout?: 'grid' | 'list';
 }
 
 export const ImageItem: React.FC<ImageItemProps> = ({
@@ -18,7 +17,6 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   showUrl = true,
   urlLength = 30,
   className = '',
-  layout = 'list',
 }) => {
   const [imageData, setImageData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,45 +59,9 @@ export const ImageItem: React.FC<ImageItemProps> = ({
     }
   };
 
-  if (layout === 'list') {
-    return (
-      <div ref={containerRef} className={`image-item ${className}`}>
-        <div className="image-preview">
-          {isLoading ? (
-            <div className="placeholder">Loading...</div>
-          ) : imageData ? (
-            <img
-              src={imageData}
-              alt={`Captured from ${image.url}`}
-              className="captured-image"
-              onClick={handleDownload}
-            />
-          ) : (
-            <div className="placeholder">Image not loaded</div>
-          )}
-        </div>
-        <div className="image-info">
-          <div className="image-url" title={image.url}>
-            {displayUrl}
-          </div>
-          <div className="image-timestamp">
-            {new Date(image.timestamp).toLocaleString()}
-          </div>
-        </div>
-        <div className="image-controls">
-          <button
-            className="delete-btn"
-            onClick={() => onDelete(image.url)}
-            title="Delete Image"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    );
-  } else {
-    return (
-      <div ref={containerRef} className={`image-item ${className}`}>
+  return (
+    <div ref={containerRef} className={`image-item ${className}`}>
+      <div className="image-preview">
         {isLoading ? (
           <div className="placeholder">Loading...</div>
         ) : imageData ? (
@@ -112,21 +74,24 @@ export const ImageItem: React.FC<ImageItemProps> = ({
         ) : (
           <div className="placeholder">Image not loaded</div>
         )}
-        <div className="image-controls">
-          <button
-            className="delete-btn"
-            onClick={() => onDelete(image.url)}
-            title="Delete Image"
-          >
-            ✕
-          </button>
-        </div>
-        {showUrl && (
-          <div className="image-url" title={image.url}>
-            {displayUrl}
-          </div>
-        )}
       </div>
-    );
-  }
+      <div className="image-info">
+        <div className="image-url" title={image.url}>
+          {displayUrl}
+        </div>
+        <div className="image-timestamp">
+          {new Date(image.timestamp).toLocaleString()}
+        </div>
+      </div>
+      <div className="image-controls">
+        <button
+          className="delete-btn"
+          onClick={() => onDelete(image.url)}
+          title="Delete Image"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
 };

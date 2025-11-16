@@ -50,7 +50,6 @@ export const Popup = () => {
             console.error('Error downloading image:', error);
           }
         }}
-        layout="list"
         itemClassName="popup-image-item"
         emptyMessage="No images captured yet. Browse the web to start capturing images."
       />

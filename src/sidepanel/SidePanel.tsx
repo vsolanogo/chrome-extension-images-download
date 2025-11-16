@@ -53,7 +53,6 @@ export const SidePanel = () => {
         }}
         showUrls={true}
         urlLength={50}
-        layout="list"
         itemClassName="sidepanel-image-item"
         emptyMessage="No images captured yet. Browse the web to start capturing images."
       />
