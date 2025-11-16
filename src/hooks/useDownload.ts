@@ -204,10 +204,35 @@ export const useDownload = () => {
   const downloadImage = async (image: CapturedImage) => {
     // Check if we have full blob data first, since it's higher quality than thumbnail
     if (image.fullData) {
-      // Use the full blob data for download
-      const ext = image.url.split('.').pop()?.toLowerCase() || 'jpg';
-      const base = sanitizeBaseFilename(image.url) || 'image';
-      const filename = `captured-image-${base || 'image'}.${ext}`;
+      // Extract proper filename and extension from URL
+      let ext = 'jpg'; // Default extension
+      let base = 'image'; // Default base name
+
+      // Try to extract the extension from the URL
+      const urlParts = image.url.split('/');
+      const lastPart = urlParts[urlParts.length - 1].split('?')[0]; // Remove query parameters
+
+      // Look for file extension after the last dot
+      const lastDotIndex = lastPart.lastIndexOf('.');
+      if (lastDotIndex > 0) {
+        ext = lastPart.substring(lastDotIndex + 1).toLowerCase();
+        base = lastPart.substring(0, lastDotIndex);
+      } else {
+        // If no extension found in filename, try to extract from URL parameters
+        const formatMatch = image.url.match(/[?&]format=([^&]+)/i);
+        if (formatMatch) {
+          ext = formatMatch[1].toLowerCase();
+        } else {
+          // Default to jpg if no extension is found
+          ext = 'jpg';
+        }
+        base = lastPart;
+      }
+
+      // Clean the base name to remove query parameters and special characters
+      base = base.replace(/[?&=]/g, '-').replace(/[<>:"/\\|?*]/g, '_');
+
+      const filename = `captured-image-${base.substring(0, 40) || 'image'}.${ext}`;
 
       // Create a URL from the blob and trigger download
       const blobUrl = URL.createObjectURL(image.fullData);

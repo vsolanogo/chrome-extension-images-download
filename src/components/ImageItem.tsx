@@ -75,9 +75,34 @@ export const ImageItem: React.FC<ImageItemProps> = ({
       // Load the full image for download - this ensures we get the full blob
       const blobUrl = await loadImageBlob(image.url);
       if (blobUrl) {
-        // Create download link
-        const ext = image.url.split('.').pop()?.toLowerCase() || 'jpg';
-        const base = image.url.substring(image.url.lastIndexOf('/') + 1, image.url.lastIndexOf('.')) || 'image';
+        // Extract proper filename and extension from URL
+        let ext = 'jpg'; // Default extension
+        let base = 'image'; // Default base name
+
+        // Try to extract the extension from the URL
+        const urlParts = image.url.split('/');
+        const lastPart = urlParts[urlParts.length - 1].split('?')[0]; // Remove query parameters
+
+        // Look for file extension after the last dot
+        const lastDotIndex = lastPart.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+          ext = lastPart.substring(lastDotIndex + 1).toLowerCase();
+          base = lastPart.substring(0, lastDotIndex);
+        } else {
+          // If no extension found in filename, try to extract from URL parameters
+          const formatMatch = image.url.match(/[?&]format=([^&]+)/i);
+          if (formatMatch) {
+            ext = formatMatch[1].toLowerCase();
+          } else {
+            // Default to jpg if no extension is found
+            ext = 'jpg';
+          }
+          base = lastPart;
+        }
+
+        // Clean the base name to remove query parameters and special characters
+        base = base.replace(/[?&=]/g, '-').replace(/[<>:"/\\|?*]/g, '_');
+
         const filename = `captured-${base.substring(0, 40) || 'image'}.${ext}`;
 
         const a = document.createElement('a');
@@ -95,10 +120,38 @@ export const ImageItem: React.FC<ImageItemProps> = ({
         if (imageData) {
           const a = document.createElement('a');
           a.href = imageData;
-          const ext = imageData.includes('jpeg') || imageData.includes('jpg') ? 'jpg' :
-                     imageData.includes('png') ? 'png' :
-                     imageData.includes('gif') ? 'gif' : 'jpg';
-          const base = image.url.substring(image.url.lastIndexOf('/') + 1, image.url.lastIndexOf('.')) || 'image';
+
+          // Extract extension from the data URL if possible
+          let ext = 'jpg';
+          if (imageData.startsWith('data:image/jpeg') || imageData.startsWith('data:image/jpg')) {
+            ext = 'jpg';
+          } else if (imageData.startsWith('data:image/png')) {
+            ext = 'png';
+          } else if (imageData.startsWith('data:image/gif')) {
+            ext = 'gif';
+          } else if (imageData.startsWith('data:image/webp')) {
+            ext = 'webp';
+          }
+
+          // Extract proper filename from the original image URL for the fallback
+          let base = 'image'; // Default base name
+
+          // Try to extract the extension from the URL
+          const urlParts = image.url.split('/');
+          const lastPart = urlParts[urlParts.length - 1].split('?')[0]; // Remove query parameters
+
+          // Look for file extension after the last dot
+          const lastDotIndex = lastPart.lastIndexOf('.');
+          if (lastDotIndex > 0) {
+            base = lastPart.substring(0, lastDotIndex);
+          } else {
+            // If no extension found in filename, just use the last part
+            base = lastPart;
+          }
+
+          // Clean the base name to remove query parameters and special characters
+          base = base.replace(/[?&=]/g, '-').replace(/[<>:"/\\|?*]/g, '_');
+
           a.download = `captured-${base.substring(0, 40) || 'image'}.${ext}`;
           document.body.appendChild(a);
           a.click();
