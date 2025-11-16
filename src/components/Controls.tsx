@@ -17,12 +17,8 @@ export const Controls: React.FC<ControlsProps> = ({
   clearDisabled = false,
   downloadDisabled = false,
   className = '',
-  showZipInfo = false
+  showZipInfo = false,
 }) => {
-  const MAX_IMAGES_PER_ZIP = 500;
-  const needsSplit = count > MAX_IMAGES_PER_ZIP;
-  const numZips = needsSplit ? Math.ceil(count / MAX_IMAGES_PER_ZIP) : 1;
-
   return (
     <div className={`controls ${className}`}>
       <button
@@ -32,10 +28,7 @@ export const Controls: React.FC<ControlsProps> = ({
       >
         ↻ Refresh
       </button>
-      <button
-        onClick={onClearAll}
-        disabled={clearDisabled || count === 0}
-      >
+      <button onClick={onClearAll} disabled={clearDisabled || count === 0}>
         Clear All Images
       </button>
       <button
@@ -46,16 +39,9 @@ export const Controls: React.FC<ControlsProps> = ({
       </button>
       {showZipInfo && count > 0 && (
         <div className="zip-info">
-          {needsSplit ? (
-            <span className="zip-warning">
-              ⚠️ {count} images will be split into {numZips} ZIP file{numZips > 1 ? 's' : ''}
-              (max {MAX_IMAGES_PER_ZIP} per ZIP)
-            </span>
-          ) : (
-            <span>
-              {count} image{count !== 1 ? 's' : ''} in single ZIP
-            </span>
-          )}
+          <span>
+            {count} image{count !== 1 ? 's' : ''} in ZIP
+          </span>
         </div>
       )}
     </div>

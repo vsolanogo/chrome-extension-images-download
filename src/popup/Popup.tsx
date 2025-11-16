@@ -1,10 +1,12 @@
-import React from 'react'
-import '../styles/common.css'
-import './Popup.css'
+// src/popup/Popup.tsx
+import React from 'react';
+import '../styles/common.css';
+import './Popup.css';
 import { ImageList } from '../components/ImageList';
 import { Controls } from '../components/Controls';
 import { useCapturedImages } from '../hooks/useCapturedImages';
 import { useDownload } from '../hooks/useDownload';
+import { loadAllImages } from '../utils/indexedDBUtils';
 
 export const Popup = () => {
   const { images, imageCount, deleteImage, clearAllImages, downloadImage, refreshImages } = useCapturedImages();
@@ -14,17 +16,15 @@ export const Popup = () => {
   console.log('Popup - Images count:', imageCount, 'Images array length:', images.length);
 
   // Function to download all images as a zip
-  const downloadAllImagesAsZip = () => {
-    chrome.runtime.sendMessage({ type: 'DOWNLOAD_IMAGES_AS_ZIP' }, (response) => {
-      if (response && response.type === 'DOWNLOAD_IMAGES_AS_ZIP_RESPONSE') {
-        downloadAll(response.images);
-      }
-    });
+  const downloadAllImagesAsZip = async () => {
+    try {
+      // Load images directly from IndexedDB
+      const allImages = await loadAllImages();
+      downloadAll(allImages);
+    } catch (error) {
+      console.error('Error downloading all images:', error);
+    }
   };
-
-  setTimeout(() => {
-    console.log('Popup Render - Images count:', imageCount, 'Images array length:', images.length);
-  }, 2000);
 
   return (
     <main className="popup">
@@ -43,16 +43,22 @@ export const Popup = () => {
       <ImageList
         images={images}
         onDelete={deleteImage}
-        onDownload={downloadImage}
-        layout="grid"
+        onDownload={async (image) => {
+          try {
+            await downloadImage(image);
+          } catch (error) {
+            console.error('Error downloading image:', error);
+          }
+        }}
+        layout="list"
         itemClassName="popup-image-item"
         emptyMessage="No images captured yet. Browse the web to start capturing images."
       />
-      <a href={link} target="_blank" className="footer-link">
+      <a href={link} target="_blank" className="footer-link" rel="noreferrer">
         Image Capture Extension
       </a>
     </main>
-  )
-}
+  );
+};
 
-export default Popup
+export default Popup;

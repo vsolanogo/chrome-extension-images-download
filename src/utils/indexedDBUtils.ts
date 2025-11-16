@@ -150,3 +150,24 @@ export async function countImages(): Promise<number> {
     };
   });
 }
+
+/**
+ * Load image data for a specific URL
+ */
+export async function loadImageData(url: string): Promise<string | undefined> {
+  const db = await initDB();
+  return new Promise<string | undefined>((resolve, reject) => {
+    const tx = db.transaction([STORE_NAME], 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.get(url);
+
+    req.onsuccess = () => {
+      const image = req.result as CapturedImage;
+      resolve(image?.data);
+    };
+
+    req.onerror = () => {
+      reject(req.error ?? new Error('Failed to load image data'));
+    };
+  });
+}

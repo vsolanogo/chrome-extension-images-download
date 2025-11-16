@@ -1,10 +1,12 @@
-import React from 'react'
-import '../styles/common.css'
-import './SidePanel.css'
+// src/sidepanel/SidePanel.tsx
+import React from 'react';
+import '../styles/common.css';
+import './SidePanel.css';
 import { ImageList } from '../components/ImageList';
 import { Controls } from '../components/Controls';
 import { useCapturedImages } from '../hooks/useCapturedImages';
 import { useDownload } from '../hooks/useDownload';
+import { loadAllImages } from '../utils/indexedDBUtils';
 
 export const SidePanel = () => {
   const { images, imageCount, deleteImage, clearAllImages, downloadImage, refreshImages } = useCapturedImages();
@@ -14,12 +16,14 @@ export const SidePanel = () => {
   console.log('SidePanel - Images count:', imageCount, 'Images array length:', images.length);
 
   // Function to download all images as a zip
-  const downloadAllImagesAsZip = () => {
-    chrome.runtime.sendMessage({ type: 'DOWNLOAD_IMAGES_AS_ZIP' }, (response) => {
-      if (response && response.type === 'DOWNLOAD_IMAGES_AS_ZIP_RESPONSE') {
-        downloadAll(response.images);
-      }
-    });
+  const downloadAllImagesAsZip = async () => {
+    try {
+      // Load images directly from IndexedDB
+      const allImages = await loadAllImages();
+      downloadAll(allImages);
+    } catch (error) {
+      console.error('Error downloading all images:', error);
+    }
   };
 
   return (
@@ -40,18 +44,24 @@ export const SidePanel = () => {
       <ImageList
         images={images}
         onDelete={deleteImage}
-        onDownload={downloadImage}
+        onDownload={async (image) => {
+          try {
+            await downloadImage(image);
+          } catch (error) {
+            console.error('Error downloading image:', error);
+          }
+        }}
         showUrls={true}
         urlLength={50}
         layout="list"
         itemClassName="sidepanel-image-item"
         emptyMessage="No images captured yet. Browse the web to start capturing images."
       />
-      <a href={link} target="_blank" className="footer-link">
+      <a href={link} target="_blank" className="footer-link" rel="noreferrer">
         Image Capture Extension
       </a>
     </main>
-  )
-}
+  );
+};
 
-export default SidePanel
+export default SidePanel;

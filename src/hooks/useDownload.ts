@@ -1,12 +1,12 @@
-import { useState } from "react";
-import { CapturedImage } from "../utils/indexedDBUtils";
-import JSZip from "jszip";
+import { useState } from 'react';
+import { CapturedImage, loadImageData } from '../utils/indexedDBUtils';
+import JSZip from 'jszip';
 
 /* ---------- Constants ---------- */
-const MAX_IMAGES_PER_ZIP = 500;
+const MAX_IMAGES_PER_ZIP = 10000; // Set to high number to effectively disable chunking
 const ZIP_COMPRESSION_OPTIONS = {
-  type: "blob" as const,
-  compression: "DEFLATE" as const,
+  type: 'blob' as const,
+  compression: 'DEFLATE' as const,
   compressionOptions: { level: 0 },
 };
 
@@ -20,37 +20,37 @@ const chunkArray = <T>(arr: T[], size: number): T[][] => {
 
 const sanitizeBaseFilename = (url: string): string => {
   let name = url.substring(
-    url.lastIndexOf("/") + 1,
-    url.lastIndexOf(".") || url.length
+    url.lastIndexOf('/') + 1,
+    url.lastIndexOf('.') || url.length
   );
-  if (!name) name = "image";
+  if (!name) name = 'image';
   // replace characters that cause FS issues
-  return name.replace(/[<>:"/\\|?*]/g, "_").substring(0, 50);
+  return name.replace(/[<>:"/\\|?*]/g, '_').substring(0, 50);
 };
 
 const extensionFromMime = (data: string): string | null => {
-  if (!data.startsWith("data:image/")) return null;
-  if (data.startsWith("data:image/jpeg") || data.startsWith("data:image/jpg"))
-    return "jpg";
-  if (data.startsWith("data:image/png")) return "png";
-  if (data.startsWith("data:image/gif")) return "gif";
-  if (data.startsWith("data:image/webp")) return "webp";
-  if (data.startsWith("data:image/bmp")) return "bmp";
-  if (data.startsWith("data:image/svg+xml")) return "svg";
+  if (!data.startsWith('data:image/')) return null;
+  if (data.startsWith('data:image/jpeg') || data.startsWith('data:image/jpg'))
+    return 'jpg';
+  if (data.startsWith('data:image/png')) return 'png';
+  if (data.startsWith('data:image/gif')) return 'gif';
+  if (data.startsWith('data:image/webp')) return 'webp';
+  if (data.startsWith('data:image/bmp')) return 'bmp';
+  if (data.startsWith('data:image/svg+xml')) return 'svg';
   return null;
 };
 
 const getImageExtension = (url: string, data: string): string => {
-  const urlExt = url.split(".").pop()?.toLowerCase();
+  const urlExt = url.split('.').pop()?.toLowerCase();
   if (
     urlExt &&
-    ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(urlExt)
+    ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(urlExt)
   ) {
     // normalize jpeg -> jpg
-    return urlExt === "jpeg" ? "jpg" : urlExt;
+    return urlExt === 'jpeg' ? 'jpg' : urlExt;
   }
   const mimeExt = extensionFromMime(data);
-  return mimeExt ?? "png";
+  return mimeExt ?? 'png';
 };
 
 const ensureUniqueFilename = (
@@ -73,7 +73,7 @@ const ensureUniqueFilename = (
 
 const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
@@ -94,8 +94,8 @@ const addImagesToZip = (zip: JSZip, images: CapturedImage[]) => {
   images.forEach((image, idx) => {
     if (!image.data) return;
     const ext = getImageExtension(image.url, image.data);
-    const base = sanitizeBaseFilename(image.url) || "image";
-    const initial = `image-${idx + 1}-${base || "image"}.${ext}`;
+    const base = sanitizeBaseFilename(image.url) || 'image';
+    const initial = `image-${idx + 1}-${base || 'image'}.${ext}`;
     const filename = ensureUniqueFilename(
       usedFilenames,
       initial,
@@ -105,8 +105,8 @@ const addImagesToZip = (zip: JSZip, images: CapturedImage[]) => {
     );
 
     // if data is a data URL, split and use base64; otherwise try to accept direct data string
-    const base64 = image.data.includes(",")
-      ? image.data.split(",")[1]
+    const base64 = image.data.includes(',')
+      ? image.data.split(',')[1]
       : image.data;
     zip.file(filename, base64, { base64: true });
     processedCount++;
@@ -114,7 +114,6 @@ const addImagesToZip = (zip: JSZip, images: CapturedImage[]) => {
 
   return processedCount;
 };
-
 /* ---------- Hook ---------- */
 
 export const useDownload = () => {
@@ -122,7 +121,7 @@ export const useDownload = () => {
 
   const downloadAllImagesAsZip = async (images: CapturedImage[]) => {
     if (isDownloading) {
-      console.info("Zip download is already in progress, please wait...");
+      console.info('Zip download is already in progress, please wait...');
       return;
     }
     setIsDownloading(true);
@@ -131,8 +130,19 @@ export const useDownload = () => {
       const totalImages = images.length;
       console.info(`Starting to download ${totalImages} images...`);
 
-      const chunks = chunkArray(images, MAX_IMAGES_PER_ZIP);
-      console.info(`Will create ${chunks.length} ZIP file(s).`);
+      // Load image data for each image
+      const imagesWithData = await Promise.all(
+        images.map(async (image) => {
+          const data = await loadImageData(image.url);
+          return { ...image, data };
+        })
+      );
+
+      // Filter out any images that couldn't be loaded
+      const validImages = imagesWithData.filter(img => img.data !== undefined);
+
+      const chunks = chunkArray(validImages, MAX_IMAGES_PER_ZIP);
+      console.info(`Will create ${chunks.length} ZIP file(s).`, chunks.length > 1 ? '(chunked due to size)' : '(single zip)');
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
@@ -167,22 +177,24 @@ export const useDownload = () => {
         }
       }
 
-      console.info("All requested ZIP processing finished.");
+      console.info('All requested ZIP processing finished.');
     } finally {
       setIsDownloading(false);
     }
   };
 
-  const downloadImage = (image: CapturedImage) => {
-    if (!image.data) return;
+  const downloadImage = async (image: CapturedImage) => {
+    // Load the image data if not already present
+    const imageData = image.data || await loadImageData(image.url);
+    if (!imageData) return;
 
-    const ext = getImageExtension(image.url, image.data);
-    const base = sanitizeBaseFilename(image.url) || "image";
-    const filename = `captured-image-${base || "image"}.${ext}`;
+    const ext = getImageExtension(image.url, imageData);
+    const base = sanitizeBaseFilename(image.url) || 'image';
+    const filename = `captured-image-${base || 'image'}.${ext}`;
 
     // Use data URL as href so browser will download it as a file
-    const a = document.createElement("a");
-    a.href = image.data;
+    const a = document.createElement('a');
+    a.href = imageData;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
@@ -191,7 +203,7 @@ export const useDownload = () => {
 
   return {
     downloadAllImagesAsZip,
-    downloadImage,
+    downloadImage: downloadImage,
     isDownloading,
   };
 };

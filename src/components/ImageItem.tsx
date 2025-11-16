@@ -1,13 +1,14 @@
-import { CapturedImage } from '../utils/indexedDBUtils';
+import { useEffect, useRef, useState } from 'react';
+import { CapturedImage, loadImageData } from '../utils/indexedDBUtils';
 
 interface ImageItemProps {
   image: CapturedImage;
   onDelete: (url: string) => void;
-  onDownload: (image: CapturedImage) => void;
+  onDownload: (image: CapturedImage) => Promise<void>;
   showUrl?: boolean;
   urlLength?: number;
   className?: string;
-  layout?: 'grid' | 'list'; // Different layouts for popup vs sidepanel
+  layout?: 'grid' | 'list';
 }
 
 export const ImageItem: React.FC<ImageItemProps> = ({
@@ -17,23 +18,61 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   showUrl = true,
   urlLength = 30,
   className = '',
-  layout = 'grid'
+  layout = 'list',
 }) => {
-  const displayUrl = image.url.length > urlLength
-    ? image.url.substring(0, urlLength) + '...'
-    : image.url;
+  const [imageData, setImageData] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Load image data when component mounts
+  useEffect(() => {
+    const loadImage = async () => {
+      try {
+        const data = await loadImageData(image.url);
+        setImageData(data || null);
+      } catch (error) {
+        console.error('Error loading image data:', error);
+        setImageData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadImage();
+  }, [image.url]);
+
+  const displayUrl =
+    image.url.length > urlLength
+      ? image.url.substring(0, urlLength) + '...'
+      : image.url;
+
+  const handleDownload = () => {
+    if (imageData) {
+      // Wrap the async function call
+      (async () => {
+        try {
+          await onDownload({ ...image, data: imageData });
+        } catch (error) {
+          console.error('Error downloading image:', error);
+        }
+      })();
+    } else {
+      console.error('Image data not available for download');
+    }
+  };
 
   if (layout === 'list') {
-    // Side panel style with image preview, info, and controls in a row
     return (
-      <div className={`image-item ${className}`}>
+      <div ref={containerRef} className={`image-item ${className}`}>
         <div className="image-preview">
-          {image.data ? (
+          {isLoading ? (
+            <div className="placeholder">Loading...</div>
+          ) : imageData ? (
             <img
-              src={image.data}
+              src={imageData}
               alt={`Captured from ${image.url}`}
               className="captured-image"
-              onClick={() => onDownload(image)}
+              onClick={handleDownload}
             />
           ) : (
             <div className="placeholder">Image not loaded</div>
@@ -59,15 +98,16 @@ export const ImageItem: React.FC<ImageItemProps> = ({
       </div>
     );
   } else {
-    // Popup style with image and info stacked vertically
     return (
-      <div className={`image-item ${className}`}>
-        {image.data ? (
+      <div ref={containerRef} className={`image-item ${className}`}>
+        {isLoading ? (
+          <div className="placeholder">Loading...</div>
+        ) : imageData ? (
           <img
-            src={image.data}
+            src={imageData}
             alt={`Captured from ${image.url}`}
             className="captured-image"
-            onClick={() => onDownload(image)}
+            onClick={handleDownload}
           />
         ) : (
           <div className="placeholder">Image not loaded</div>
