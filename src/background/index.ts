@@ -12,6 +12,27 @@ import {
   countImages
 } from '../utils/indexedDBUtils';
 
+// --- NEW: Function to update the badge text ---
+/**
+ * Updates the extension's badge with the current number of captured images.
+ * If the count is 0, the badge is hidden.
+ */
+async function updateBadge() {
+  try {
+    const imageCount = await countImages();
+    // Set the badge text. If count is 0, use an empty string to hide it.
+    chrome.action.setBadgeText({ text: imageCount > 0 ? imageCount.toString() : '' });
+    // Set a background color for the badge for better visibility.
+    chrome.action.setBadgeBackgroundColor({ color: '#4688F1' }); // A nice blue color
+  } catch (error) {
+    console.error("Failed to update badge:", error);
+    // Optionally, show an error indicator on the badge
+    chrome.action.setBadgeText({ text: '!' });
+    chrome.action.setBadgeBackgroundColor({ color: 'red' });
+  }
+}
+
+
 // Function to fetch and store image data
 async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
   try {
@@ -45,6 +66,9 @@ async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
     // Store in IndexedDB
     await saveImage(imageObj);
     console.log('Image saved to IndexedDB:', 'URL:', imageObj.url);
+
+    // --- NEW: Update the badge after a new image is saved ---
+    await updateBadge();
 
     // Send message to any open views that a new image was captured (metadata only)
     // This is kept for immediate UI updates
@@ -95,7 +119,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // --- HANDLERS FOR DATA MODIFICATION (KEPT) ---
   if (message.type === 'CLEAR_CAPTURED_IMAGES') {
     clearAllImages()
-      .then(() => sendResponse({ type: 'CLEAR_RESPONSE', success: true }))
+      .then(async () => { // Made callback async to use await
+        // --- NEW: Update the badge after clearing all images ---
+        await updateBadge();
+        sendResponse({ type: 'CLEAR_RESPONSE', success: true });
+      })
       .catch(error => {
         console.error('Error clearing images:', error);
         sendResponse({ type: 'CLEAR_RESPONSE', success: false });
@@ -104,7 +132,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'DELETE_IMAGE') {
     const imageId = message.imageId;
     deleteImage(imageId)
-      .then(() => sendResponse({ type: 'DELETE_RESPONSE', success: true }))
+      .then(async () => { // Made callback async to use await
+        // --- NEW: Update the badge after deleting an image ---
+        await updateBadge();
+        sendResponse({ type: 'DELETE_RESPONSE', success: true });
+      })
       .catch(error => {
         console.error('Error deleting image:', error);
         sendResponse({ type: 'DELETE_RESPONSE', success: false });
@@ -128,7 +160,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onStartup.addListener(() => {
   console.log('Browser started up, clearing all captured images from IndexedDB');
   clearAllImages()
-    .then(() => {
+    .then(async () => { // Made callback async to use await
+      // --- NEW: Update the badge after clearing on startup ---
+      await updateBadge();
       console.log('All images cleared on startup');
     })
     .catch(error => {
@@ -138,8 +172,10 @@ chrome.runtime.onStartup.addListener(() => {
 
 // Log startup message after everything is set up
 loadAllImages()
-  .then(images => {
+  .then(async images => { // Made callback async to use await
     console.log('Loaded', images.length, 'previously captured images from IndexedDB');
+    // --- NEW: Set the initial badge count when the background script loads ---
+    await updateBadge();
   })
   .catch(error => {
     console.error('Error loading images on startup:', error);
