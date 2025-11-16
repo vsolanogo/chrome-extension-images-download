@@ -69,19 +69,46 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   };
 
   const handleImageClick = async () => {
-    if (showFullImage) {
-      // Show thumbnail again
-      setIsLoading(true);
-      const thumbnailData = await loadImageData(image.url);
-      setImageData(thumbnailData || null);
-      setShowFullImage(false);
-      setIsLoading(false);
-    } else {
-      // Load and show full image
-      const fullImageUrl = await loadFullImage();
-      if (fullImageUrl) {
-        setShowFullImage(true);
+    // For single image download, always use the full image
+    setIsLoading(true);
+    try {
+      // Load the full image for download - this ensures we get the full blob
+      const blobUrl = await loadImageBlob(image.url);
+      if (blobUrl) {
+        // Create download link
+        const ext = image.url.split('.').pop()?.toLowerCase() || 'jpg';
+        const base = image.url.substring(image.url.lastIndexOf('/') + 1, image.url.lastIndexOf('.')) || 'image';
+        const filename = `captured-${base.substring(0, 40) || 'image'}.${ext}`;
+
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       }
+    } catch (error) {
+      console.error('Error downloading full image:', error);
+      // If blob download fails, try using the stored data as fallback
+      try {
+        const imageData = await loadImageData(image.url);
+        if (imageData) {
+          const a = document.createElement('a');
+          a.href = imageData;
+          const ext = imageData.includes('jpeg') || imageData.includes('jpg') ? 'jpg' :
+                     imageData.includes('png') ? 'png' :
+                     imageData.includes('gif') ? 'gif' : 'jpg';
+          const base = image.url.substring(image.url.lastIndexOf('/') + 1, image.url.lastIndexOf('.')) || 'image';
+          a.download = `captured-${base.substring(0, 40) || 'image'}.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback download also failed:', fallbackError);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -122,7 +149,7 @@ export const ImageItem: React.FC<ImageItemProps> = ({
             alt={`Captured from ${image.url}`}
             className={`captured-image ${showFullImage ? 'full-image' : 'thumbnail'}`}
             onClick={handleImageClick}
-            title={showFullImage ? "Click to show thumbnail" : "Click to show full image"}
+            title="Click to download image"
           />
         ) : (
           <div className="placeholder">Image not loaded</div>

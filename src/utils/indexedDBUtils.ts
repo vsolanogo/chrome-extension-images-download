@@ -160,7 +160,7 @@ export async function countImages(): Promise<number> {
 /**
  * Generate thumbnail from blob
  */
-export async function generateThumbnailFromBlob(blob: Blob, maxWidth = 150, maxHeight = 150): Promise<string> {
+export async function generateThumbnailFromBlob(blob: Blob, maxWidth = 50, maxHeight = 50): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');

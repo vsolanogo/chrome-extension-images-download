@@ -87,13 +87,31 @@ const generateAndDownloadZip = async (zip: JSZip, downloadName: string) => {
   downloadBlob(content, downloadName);
 };
 
-const addImagesToZip = (zip: JSZip, images: CapturedImage[]) => {
+const addImagesToZip = async (zip: JSZip, images: CapturedImage[]): Promise<number> => {
   const usedFilenames = new Set<string>();
   let processedCount = 0;
 
-  images.forEach((image, idx) => {
-    if (!image.data) return;
-    const ext = getImageExtension(image.url, image.data);
+  for (let idx = 0; idx < images.length; idx++) {
+    const image = images[idx];
+
+    // Load full image data for the zip - prioritize fullData blob over thumbnail data
+    let imageData: string | undefined;
+    if (image.fullData) {
+      // Convert blob to base64 for ZIP
+      const reader = new FileReader();
+      imageData = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read image blob'));
+        reader.readAsDataURL(image.fullData!); // Use ! since we checked above
+      });
+    } else {
+      // Fallback to stored data or thumbnail
+      imageData = image.data || image.thumbnailData;
+    }
+
+    if (!imageData) continue;
+
+    const ext = getImageExtension(image.url, imageData);
     const base = sanitizeBaseFilename(image.url) || 'image';
     const initial = `image-${idx + 1}-${base || 'image'}.${ext}`;
     const filename = ensureUniqueFilename(
@@ -105,12 +123,12 @@ const addImagesToZip = (zip: JSZip, images: CapturedImage[]) => {
     );
 
     // if data is a data URL, split and use base64; otherwise try to accept direct data string
-    const base64 = image.data.includes(',')
-      ? image.data.split(',')[1]
-      : image.data;
+    const base64 = imageData.includes(',')
+      ? imageData.split(',')[1]
+      : imageData;
     zip.file(filename, base64, { base64: true });
     processedCount++;
-  });
+  }
 
   return processedCount;
 };
@@ -152,7 +170,7 @@ export const useDownload = () => {
 
         try {
           const zip = new JSZip();
-          const added = addImagesToZip(zip, chunk);
+          const added = await addImagesToZip(zip, chunk);
 
           console.info(
             `Added ${added} images to ZIP part ${i + 1}, generating...`
@@ -184,21 +202,39 @@ export const useDownload = () => {
   };
 
   const downloadImage = async (image: CapturedImage) => {
-    // Load the image data if not already present
-    const imageData = image.data || await loadImageData(image.url);
-    if (!imageData) return;
+    // Check if we have full blob data first, since it's higher quality than thumbnail
+    if (image.fullData) {
+      // Use the full blob data for download
+      const ext = image.url.split('.').pop()?.toLowerCase() || 'jpg';
+      const base = sanitizeBaseFilename(image.url) || 'image';
+      const filename = `captured-image-${base || 'image'}.${ext}`;
 
-    const ext = getImageExtension(image.url, imageData);
-    const base = sanitizeBaseFilename(image.url) || 'image';
-    const filename = `captured-image-${base || 'image'}.${ext}`;
+      // Create a URL from the blob and trigger download
+      const blobUrl = URL.createObjectURL(image.fullData);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } else {
+      // Fallback to using stored data or loading it
+      const imageData = image.data || await loadImageData(image.url);
+      if (!imageData) return;
 
-    // Use data URL as href so browser will download it as a file
-    const a = document.createElement('a');
-    a.href = imageData;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+      const ext = getImageExtension(image.url, imageData);
+      const base = sanitizeBaseFilename(image.url) || 'image';
+      const filename = `captured-image-${base || 'image'}.${ext}`;
+
+      // Use data URL as href so browser will download it as a file
+      const a = document.createElement('a');
+      a.href = imageData;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   return {
