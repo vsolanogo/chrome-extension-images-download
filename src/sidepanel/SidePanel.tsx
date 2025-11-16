@@ -1,5 +1,5 @@
 // src/sidepanel/SidePanel.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import '../styles/common.css';
 import './SidePanel.css';
 import { ImageList } from '../components/ImageList';
@@ -8,19 +8,31 @@ import { useCapturedImages } from '../hooks/useCapturedImages';
 import { useDownload } from '../hooks/useDownload';
 import { loadAllImages } from '../utils/indexedDBUtils';
 
+interface DownloadProgress {
+  isDownloading: boolean;
+  progress: number | null;
+  currentChunk: number | null;
+  totalChunks: number | null;
+  message: string;
+}
+
 export const SidePanel = () => {
   const { images, imageCount, deleteImage, clearAllImages, downloadImage } = useCapturedImages();
   const { downloadAllImagesAsZip: downloadAll, isDownloading } = useDownload();
+  const [zipProgress, setZipProgress] = useState<DownloadProgress | null>(null);
   const link = 'https://github.com/guocaoyi/create-chrome-ext';
 
   console.log('SidePanel - Images count:', imageCount, 'Images array length:', images.length);
 
   // Function to download all images as a zip
-  const downloadAllImagesAsZip = async () => {
+  const downloadAllImagesAsZip = async (onProgress?: (progress: DownloadProgress) => void) => {
     try {
       // Load images directly from IndexedDB
       const allImages = await loadAllImages();
-      downloadAll(allImages);
+      await downloadAll(allImages, (progress) => {
+        setZipProgress(progress);
+        onProgress?.(progress);
+      });
     } catch (error) {
       console.error('Error downloading all images:', error);
     }
@@ -34,8 +46,9 @@ export const SidePanel = () => {
         onDownloadAll={downloadAllImagesAsZip}
         count={imageCount}
         downloadDisabled={isDownloading}
+        isZipDownloading={isDownloading}
+        progress={{ isDownloading, progress: zipProgress?.progress || null, message: zipProgress?.message || '', currentChunk: null, totalChunks: null }}
         className="sidepanel-controls"
-        showZipInfo={true}
       />
       <div className="image-count">
         Captured Images: {imageCount}

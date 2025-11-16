@@ -1,19 +1,53 @@
 import { useState, useEffect, useRef } from 'react';
-import { CapturedImage, loadAllImages, loadImageData } from '../utils/indexedDBUtils';
+import { CapturedImage, loadAllImages, loadImageData, countImages } from '../utils/indexedDBUtils';
+
+// Define a type for the view state that excludes the full blob data
+interface ImageMetadata {
+  url: string;
+  tabId: number;
+  timestamp: number;
+  thumbnailData?: string; // Only thumbnail for UI display
+  fileSize?: number;
+  width?: number;
+  height?: number;
+  // We keep data field for backward compatibility
+  data?: string;
+}
 
 // Custom hook to manage captured images
 export const useCapturedImages = () => {
-  const [images, setImages] = useState<CapturedImage[]>([]);
+  const [images, setImages] = useState<ImageMetadata[]>([]);
   const [imageCount, setImageCount] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Function to load images directly from IndexedDB
   const loadImagesFromIndexedDB = async () => {
     try {
-      const allImages = await loadAllImages();
-      console.log('Loaded images from IndexedDB:', allImages.length);
-      setImages(allImages);
-      setImageCount(allImages.length);
+      // First, get the count of images
+      const count = await countImages();
+
+      // Only fetch the full dataset if the count differs from current state
+      if (count !== images.length) {
+        const allImages = await loadAllImages();
+        console.log('Loaded images from IndexedDB:', allImages.length);
+
+        // Map to only include metadata and thumbnails (not full blobs) in state
+        const imageMetadata = allImages.map(img => ({
+          url: img.url,
+          tabId: img.tabId,
+          timestamp: img.timestamp,
+          thumbnailData: img.thumbnailData,
+          fileSize: img.fileSize,
+          width: img.width,
+          height: img.height,
+          data: img.data // For backward compatibility
+        }));
+
+        setImages(imageMetadata);
+        setImageCount(allImages.length);
+      } else {
+        // Update count in state in case it was zero initially
+        setImageCount(count);
+      }
     } catch (error) {
       console.error('Error loading images from IndexedDB:', error);
       setImages([]);
@@ -71,7 +105,7 @@ export const useCapturedImages = () => {
   };
 
   // Function to download an image
-  const downloadImage = async (image: CapturedImage) => {
+  const downloadImage = async (image: ImageMetadata) => {
     // Load the image data if not already present
     const imageData = image.data || await loadImageData(image.url);
     if (!imageData) return;

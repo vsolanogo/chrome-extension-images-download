@@ -83,7 +83,14 @@ const downloadBlob = (blob: Blob, filename: string) => {
 };
 
 const generateAndDownloadZip = async (zip: JSZip, downloadName: string) => {
-  const content = await zip.generateAsync(ZIP_COMPRESSION_OPTIONS);
+  // Create a zip with progress tracking
+  const content = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 0 },
+  } as JSZip.JSZipGeneratorOptions<'blob'>, (metadata) => {
+    // Progress callback can be used for more detailed progress tracking if needed
+  });
   downloadBlob(content, downloadName);
 };
 
@@ -134,10 +141,18 @@ const addImagesToZip = async (zip: JSZip, images: CapturedImage[]): Promise<numb
 };
 /* ---------- Hook ---------- */
 
+interface DownloadProgress {
+  isDownloading: boolean;
+  progress: number | null;
+  currentChunk: number | null;
+  totalChunks: number | null;
+  message: string;
+}
+
 export const useDownload = () => {
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const downloadAllImagesAsZip = async (images: CapturedImage[]) => {
+  const downloadAllImagesAsZip = async (images: CapturedImage[], onProgress?: (progress: DownloadProgress) => void) => {
     if (isDownloading) {
       console.info('Zip download is already in progress, please wait...');
       return;
@@ -147,6 +162,7 @@ export const useDownload = () => {
     try {
       const totalImages = images.length;
       console.info(`Starting to download ${totalImages} images...`);
+      onProgress?.({ isDownloading: true, progress: 0, currentChunk: 0, totalChunks: null, message: `Starting download of ${totalImages} images...` });
 
       // Load image data for each image
       const imagesWithData = await Promise.all(
@@ -158,23 +174,17 @@ export const useDownload = () => {
 
       // Filter out any images that couldn't be loaded
       const validImages = imagesWithData.filter(img => img.data !== undefined);
-
       const chunks = chunkArray(validImages, MAX_IMAGES_PER_ZIP);
-      console.info(`Will create ${chunks.length} ZIP file(s).`, chunks.length > 1 ? '(chunked due to size)' : '(single zip)');
+
+      onProgress?.({ isDownloading: true, progress: 0, currentChunk: 0, totalChunks: chunks.length, message: 'Preparing ZIP...' });
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
-        console.info(
-          `Processing chunk ${i + 1} / ${chunks.length} (${chunk.length} images)`
-        );
+        onProgress?.({ isDownloading: true, progress: Math.round((i * 100) / chunks.length), currentChunk: i + 1, totalChunks: chunks.length, message: 'Preparing...' });
 
         try {
           const zip = new JSZip();
           const added = await addImagesToZip(zip, chunk);
-
-          console.info(
-            `Added ${added} images to ZIP part ${i + 1}, generating...`
-          );
 
           const datePart = new Date().toISOString().slice(0, 10);
           const downloadName =
@@ -182,9 +192,21 @@ export const useDownload = () => {
               ? `captured-images-${datePart}-part-${i + 1}.zip`
               : `captured-images-${datePart}.zip`;
 
-          await generateAndDownloadZip(zip, downloadName);
+          // Generate ZIP with progress tracking
+          const content = await zip.generateAsync({
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 0 },
+          } as JSZip.JSZipGeneratorOptions<'blob'>, (metadata) => {
+            // Progress callback - calculate overall progress
+            const chunkProgress = Math.round(metadata.percent);
+            const overallProgress = Math.round(((i * 100) + chunkProgress) / chunks.length);
+            onProgress?.({ isDownloading: true, progress: overallProgress, currentChunk: i + 1, totalChunks: chunks.length, message: 'Zipping...' });
+          });
 
-          console.info(`Download of ZIP part ${i + 1} completed successfully!`);
+          downloadBlob(content, downloadName);
+
+          onProgress?.({ isDownloading: true, progress: Math.round(((i + 1) * 100) / chunks.length), currentChunk: i + 1, totalChunks: chunks.length, message: 'Downloaded...' });
         } catch (err) {
           console.error(`Error creating ZIP file part ${i + 1}:`, err);
           // mirror original behavior: stop processing on first error
@@ -196,8 +218,15 @@ export const useDownload = () => {
       }
 
       console.info('All requested ZIP processing finished.');
+      onProgress?.({ isDownloading: false, progress: 100, currentChunk: null, totalChunks: null, message: 'Download completed!' });
+    } catch (error) {
+      console.error('Error during ZIP download:', error);
+      onProgress?.({ isDownloading: false, progress: 0, currentChunk: null, totalChunks: null, message: 'Error occurred during download.' });
     } finally {
       setIsDownloading(false);
+      setTimeout(() => {
+        onProgress?.({ isDownloading: false, progress: null, currentChunk: null, totalChunks: null, message: '' });
+      }, 2000); // Clear progress state after 2 seconds
     }
   };
 

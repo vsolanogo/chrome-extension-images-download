@@ -1,11 +1,20 @@
+interface DownloadProgress {
+  isDownloading: boolean;
+  progress: number | null;
+  currentChunk: number | null;
+  totalChunks: number | null;
+  message: string;
+}
+
 interface ControlsProps {
   onClearAll: () => void;
-  onDownloadAll: () => void;
+  onDownloadAll: (onProgress?: (progress: DownloadProgress) => void) => void;
   count: number;
   clearDisabled?: boolean;
   downloadDisabled?: boolean;
+  isZipDownloading?: boolean;
+  progress?: DownloadProgress;
   className?: string;
-  showZipInfo?: boolean;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -14,27 +23,33 @@ export const Controls: React.FC<ControlsProps> = ({
   count,
   clearDisabled = false,
   downloadDisabled = false,
+  isZipDownloading = false,
+  progress,
   className = '',
-  showZipInfo = false,
 }) => {
+  const handleDownloadAll = () => {
+    onDownloadAll((progress) => {
+      // Progress will be handled by parent component state
+    });
+  };
+
   return (
     <div className={`controls ${className}`}>
       <button onClick={onClearAll} disabled={clearDisabled || count === 0}>
         Clear All Images
       </button>
       <button
-        onClick={onDownloadAll}
-        disabled={downloadDisabled || count === 0}
+        onClick={handleDownloadAll}
+        disabled={downloadDisabled || count === 0 || isZipDownloading}
       >
-        Download All as ZIP
-      </button>
-      {showZipInfo && count > 0 && (
-        <div className="zip-info">
+        {isZipDownloading ? (
           <span>
-            {count} image{count !== 1 ? 's' : ''} in ZIP
+            <span className="spinner">⏳</span> {progress?.message || 'Processing...'} {progress && progress.progress !== null && progress.progress > 0 && `(${progress.progress}%)`}
           </span>
-        </div>
-      )}
+        ) : (
+          'Download All as ZIP'
+        )}
+      </button>
     </div>
   );
 };

@@ -23,7 +23,6 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   const [showFullImage, setShowFullImage] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const fullImageRef = useRef<string | null>(null);
-  const [thumbnailGenerated, setThumbnailGenerated] = useState(!!image.thumbnailData);
 
   // Load thumbnail data when component mounts
   useEffect(() => {
@@ -32,9 +31,6 @@ export const ImageItem: React.FC<ImageItemProps> = ({
       try {
         const data = await loadImageData(image.url);
         setImageData(data || null);
-        if (image.thumbnailData) {
-          setThumbnailGenerated(true);
-        }
       } catch (error) {
         console.error('Error loading image data:', error);
         setImageData(null);
@@ -44,7 +40,7 @@ export const ImageItem: React.FC<ImageItemProps> = ({
     };
 
     loadImage();
-  }, [image.url, image.thumbnailData]);
+  }, [image.url]);
 
   // Load full image when needed
   const loadFullImage = async () => {
