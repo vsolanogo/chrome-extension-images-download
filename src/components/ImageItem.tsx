@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { CapturedImage, loadImageData, loadImageBlob } from '../utils/indexedDBUtils';
+import { useEffect, useRef, useState } from "react";
+import {
+  CapturedImage,
+  loadImageData,
+  loadImageBlob,
+} from "../utils/indexedDBUtils";
 
 interface ImageItemProps {
   image: CapturedImage;
@@ -16,53 +20,11 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   onDownload,
   showUrl = true,
   urlLength = 30,
-  className = '',
+  className = "",
 }) => {
-  const [imageData, setImageData] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showFullImage, setShowFullImage] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const fullImageRef = useRef<string | null>(null);
-
-  // Load thumbnail data when component mounts
-  useEffect(() => {
-    const loadImage = async () => {
-      setIsLoading(true);
-      try {
-        const data = await loadImageData(image.url);
-        setImageData(data || null);
-      } catch (error) {
-        console.error('Error loading image data:', error);
-        setImageData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadImage();
-  }, [image.url]);
-
-  // Load full image when needed
-  const loadFullImage = async () => {
-    if (fullImageRef.current) {
-      return fullImageRef.current;
-    }
-
-    setIsLoading(true);
-    try {
-      const blobUrl = await loadImageBlob(image.url);
-      if (blobUrl) {
-        fullImageRef.current = blobUrl;
-        setImageData(blobUrl);
-        return blobUrl;
-      }
-    } catch (error) {
-      console.error('Error loading full image:', error);
-    } finally {
-      setIsLoading(false);
-    }
-    return null;
-  };
 
   const handleImageClick = async () => {
     // For single image download, always use the full image
@@ -72,15 +34,15 @@ export const ImageItem: React.FC<ImageItemProps> = ({
       const blobUrl = await loadImageBlob(image.url);
       if (blobUrl) {
         // Extract proper filename and extension from URL
-        let ext = 'jpg'; // Default extension
-        let base = 'image'; // Default base name
+        let ext = "jpg"; // Default extension
+        let base = "image"; // Default base name
 
         // Try to extract the extension from the URL
-        const urlParts = image.url.split('/');
-        const lastPart = urlParts[urlParts.length - 1].split('?')[0]; // Remove query parameters
+        const urlParts = image.url.split("/");
+        const lastPart = urlParts[urlParts.length - 1].split("?")[0]; // Remove query parameters
 
         // Look for file extension after the last dot
-        const lastDotIndex = lastPart.lastIndexOf('.');
+        const lastDotIndex = lastPart.lastIndexOf(".");
         if (lastDotIndex > 0) {
           ext = lastPart.substring(lastDotIndex + 1).toLowerCase();
           base = lastPart.substring(0, lastDotIndex);
@@ -91,17 +53,17 @@ export const ImageItem: React.FC<ImageItemProps> = ({
             ext = formatMatch[1].toLowerCase();
           } else {
             // Default to jpg if no extension is found
-            ext = 'jpg';
+            ext = "jpg";
           }
           base = lastPart;
         }
 
         // Clean the base name to remove query parameters and special characters
-        base = base.replace(/[?&=]/g, '-').replace(/[<>:"/\\|?*]/g, '_');
+        base = base.replace(/[?&=]/g, "-").replace(/[<>:"/\\|?*]/g, "_");
 
-        const filename = `captured-${base.substring(0, 40) || 'image'}.${ext}`;
+        const filename = `captured-${base.substring(0, 40) || "image"}.${ext}`;
 
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = blobUrl;
         a.download = filename;
         document.body.appendChild(a);
@@ -109,35 +71,38 @@ export const ImageItem: React.FC<ImageItemProps> = ({
         document.body.removeChild(a);
       }
     } catch (error) {
-      console.error('Error downloading full image:', error);
+      console.error("Error downloading full image:", error);
       // If blob download fails, try using the stored data as fallback
       try {
         const imageData = await loadImageData(image.url);
         if (imageData) {
-          const a = document.createElement('a');
+          const a = document.createElement("a");
           a.href = imageData;
 
           // Extract extension from the data URL if possible
-          let ext = 'jpg';
-          if (imageData.startsWith('data:image/jpeg') || imageData.startsWith('data:image/jpg')) {
-            ext = 'jpg';
-          } else if (imageData.startsWith('data:image/png')) {
-            ext = 'png';
-          } else if (imageData.startsWith('data:image/gif')) {
-            ext = 'gif';
-          } else if (imageData.startsWith('data:image/webp')) {
-            ext = 'webp';
+          let ext = "jpg";
+          if (
+            imageData.startsWith("data:image/jpeg") ||
+            imageData.startsWith("data:image/jpg")
+          ) {
+            ext = "jpg";
+          } else if (imageData.startsWith("data:image/png")) {
+            ext = "png";
+          } else if (imageData.startsWith("data:image/gif")) {
+            ext = "gif";
+          } else if (imageData.startsWith("data:image/webp")) {
+            ext = "webp";
           }
 
           // Extract proper filename from the original image URL for the fallback
-          let base = 'image'; // Default base name
+          let base = "image"; // Default base name
 
           // Try to extract the extension from the URL
-          const urlParts = image.url.split('/');
-          const lastPart = urlParts[urlParts.length - 1].split('?')[0]; // Remove query parameters
+          const urlParts = image.url.split("/");
+          const lastPart = urlParts[urlParts.length - 1].split("?")[0]; // Remove query parameters
 
           // Look for file extension after the last dot
-          const lastDotIndex = lastPart.lastIndexOf('.');
+          const lastDotIndex = lastPart.lastIndexOf(".");
           if (lastDotIndex > 0) {
             base = lastPart.substring(0, lastDotIndex);
           } else {
@@ -146,30 +111,18 @@ export const ImageItem: React.FC<ImageItemProps> = ({
           }
 
           // Clean the base name to remove query parameters and special characters
-          base = base.replace(/[?&=]/g, '-').replace(/[<>:"/\\|?*]/g, '_');
+          base = base.replace(/[?&=]/g, "-").replace(/[<>:"/\\|?*]/g, "_");
 
-          a.download = `captured-${base.substring(0, 40) || 'image'}.${ext}`;
+          a.download = `captured-${base.substring(0, 40) || "image"}.${ext}`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
         }
       } catch (fallbackError) {
-        console.error('Fallback download also failed:', fallbackError);
+        console.error("Fallback download also failed:", fallbackError);
       }
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleDownload = async () => {
-    try {
-      // For download, ensure we have the full image data
-      if (!showFullImage) {
-        await loadFullImage();
-      }
-      await onDownload({ ...image, data: fullImageRef.current || image.thumbnailData || image.data });
-    } catch (error) {
-      console.error('Error downloading image:', error);
     }
   };
 
@@ -184,19 +137,17 @@ export const ImageItem: React.FC<ImageItemProps> = ({
 
   const displayUrl =
     image.url.length > urlLength
-      ? image.url.substring(0, urlLength) + '...'
+      ? image.url.substring(0, urlLength) + "..."
       : image.url;
 
   return (
-    <div ref={containerRef} className={`image-item ${className}`}>
+    <div className={`image-item ${className}`}>
       <div className="image-preview">
-        {isLoading ? (
-          <div className="placeholder">Loading...</div>
-        ) : imageData ? (
+        {image.thumbnailData ? (
           <img
-            src={imageData}
+            src={image.thumbnailData}
             alt={`Captured from ${image.url}`}
-            className={`captured-image ${showFullImage ? 'full-image' : 'thumbnail'}`}
+            className={`captured-image ${showFullImage ? "full-image" : "thumbnail"}`}
             onClick={handleImageClick}
             title="Click to download image"
           />

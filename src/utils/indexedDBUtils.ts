@@ -1,6 +1,7 @@
-const DB_NAME = 'CapturedImagesDB' as const;
+import { generateThumbnailFromBlob } from "./generateThumbnailFromBlob";
+const DB_NAME = "CapturedImagesDB" as const;
 const DB_VERSION = 2 as const;
-const STORE_NAME = 'capturedImages' as const;
+const STORE_NAME = "capturedImages" as const;
 
 export interface CapturedImage {
   url: string; // Now the primary key
@@ -26,14 +27,18 @@ export function initDB(): Promise<IDBDatabase> {
       const db = request.result;
       // The database version upgrade logic
       const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
-      if (oldVersion !== null && oldVersion < 2 && db.objectStoreNames.contains(STORE_NAME)) {
+      if (
+        oldVersion !== null &&
+        oldVersion < 2 &&
+        db.objectStoreNames.contains(STORE_NAME)
+      ) {
         // If upgrading from version 1, delete the old store and create a new one
         db.deleteObjectStore(STORE_NAME);
       }
 
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         // Use 'url' as the primary key instead of 'key'
-        db.createObjectStore(STORE_NAME, { keyPath: 'url' });
+        db.createObjectStore(STORE_NAME, { keyPath: "url" });
       }
     };
 
@@ -42,7 +47,7 @@ export function initDB(): Promise<IDBDatabase> {
     };
 
     request.onerror = () => {
-      reject(request.error ?? new Error('Failed to open IndexedDB'));
+      reject(request.error ?? new Error("Failed to open IndexedDB"));
     };
   });
 }
@@ -53,14 +58,14 @@ export function initDB(): Promise<IDBDatabase> {
 export async function saveImage(image: CapturedImage): Promise<void> {
   const db = await initDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readwrite');
+    const tx = db.transaction([STORE_NAME], "readwrite");
     const store = tx.objectStore(STORE_NAME);
 
     const req = store.put(image);
 
     req.onsuccess = () => resolve();
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to save image'));
+      reject(req.error ?? new Error("Failed to save image"));
     };
   });
 }
@@ -68,19 +73,21 @@ export async function saveImage(image: CapturedImage): Promise<void> {
 /**
  * Load a single image from IndexedDB by URL
  */
-export async function loadImageByUrl(url: string): Promise<CapturedImage | undefined> {
+export async function loadImageByUrl(
+  url: string
+): Promise<CapturedImage | undefined> {
   const db = await initDB();
   return new Promise<CapturedImage | undefined>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readonly');
+    const tx = db.transaction([STORE_NAME], "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(url);
 
     req.onsuccess = () => {
-      resolve(req.result as CapturedImage || undefined);
+      resolve((req.result as CapturedImage) || undefined);
     };
 
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to load image'));
+      reject(req.error ?? new Error("Failed to load image"));
     };
   });
 }
@@ -91,7 +98,7 @@ export async function loadImageByUrl(url: string): Promise<CapturedImage | undef
 export async function loadAllImages(): Promise<CapturedImage[]> {
   const db = await initDB();
   return new Promise<CapturedImage[]>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readonly');
+    const tx = db.transaction([STORE_NAME], "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.getAll();
 
@@ -100,7 +107,7 @@ export async function loadAllImages(): Promise<CapturedImage[]> {
     };
 
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to read from object store'));
+      reject(req.error ?? new Error("Failed to read from object store"));
     };
   });
 }
@@ -111,13 +118,13 @@ export async function loadAllImages(): Promise<CapturedImage[]> {
 export async function deleteImage(url: string): Promise<void> {
   const db = await initDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readwrite');
+    const tx = db.transaction([STORE_NAME], "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const req = store.delete(url);
 
     req.onsuccess = () => resolve();
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to delete image'));
+      reject(req.error ?? new Error("Failed to delete image"));
     };
   });
 }
@@ -128,12 +135,13 @@ export async function deleteImage(url: string): Promise<void> {
 export async function clearAllImages(): Promise<void> {
   const db = await initDB();
   return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readwrite');
+    const tx = db.transaction([STORE_NAME], "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const req = store.clear();
 
     req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error ?? new Error('Failed to clear object store'));
+    req.onerror = () =>
+      reject(req.error ?? new Error("Failed to clear object store"));
   });
 }
 
@@ -143,7 +151,7 @@ export async function clearAllImages(): Promise<void> {
 export async function countImages(): Promise<number> {
   const db = await initDB();
   return new Promise<number>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readonly');
+    const tx = db.transaction([STORE_NAME], "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.count();
 
@@ -152,51 +160,8 @@ export async function countImages(): Promise<number> {
     };
 
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to count images'));
+      reject(req.error ?? new Error("Failed to count images"));
     };
-  });
-}
-
-/**
- * Generate thumbnail from blob
- */
-export async function generateThumbnailFromBlob(blob: Blob, maxWidth = 50, maxHeight = 50): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    img.onload = () => {
-      // Calculate thumbnail dimensions maintaining aspect ratio
-      let thumbWidth = img.width;
-      let thumbHeight = img.height;
-
-      if (thumbWidth > thumbHeight) {
-        if (thumbWidth > maxWidth) {
-          thumbHeight = thumbHeight * (maxWidth / thumbWidth);
-          thumbWidth = maxWidth;
-        }
-      } else {
-        if (thumbHeight > maxHeight) {
-          thumbWidth = thumbWidth * (maxHeight / thumbHeight);
-          thumbHeight = maxHeight;
-        }
-      }
-
-      canvas.width = thumbWidth;
-      canvas.height = thumbHeight;
-
-      // Draw and get thumbnail as base64
-      ctx?.drawImage(img, 0, 0, thumbWidth, thumbHeight);
-      const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8); // JPEG with 80% quality
-      URL.revokeObjectURL(img.src); // Clean up
-      resolve(thumbnailDataUrl);
-    };
-
-    img.onerror = () => reject(new Error('Failed to load image for thumbnail generation'));
-
-    // Load the blob as an image
-    img.src = URL.createObjectURL(blob);
   });
 }
 
@@ -206,7 +171,7 @@ export async function generateThumbnailFromBlob(blob: Blob, maxWidth = 50, maxHe
 export async function loadImageData(url: string): Promise<string | undefined> {
   const db = await initDB();
   return new Promise<string | undefined>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readonly');
+    const tx = db.transaction([STORE_NAME], "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(url);
 
@@ -219,23 +184,27 @@ export async function loadImageData(url: string): Promise<string | undefined> {
       }
       // If we have fullData but no thumbnail, generate one on the fly
       else if (image?.fullData) {
-        generateThumbnailFromBlob(image.fullData).then(thumbnailData => {
-          // Update the image record with the generated thumbnail
-          const updatedImage: CapturedImage = {
-            ...image,
-            thumbnailData
-          };
-          saveImage(updatedImage).then(() => {
-            resolve(thumbnailData);
-          }).catch(error => {
-            console.error('Failed to save thumbnail to IndexedDB:', error);
-            resolve(thumbnailData); // Still resolve with thumbnail even if save fails
+        generateThumbnailFromBlob(image.fullData)
+          .then((thumbnailData) => {
+            // Update the image record with the generated thumbnail
+            const updatedImage: CapturedImage = {
+              ...image,
+              thumbnailData,
+            };
+            saveImage(updatedImage)
+              .then(() => {
+                resolve(thumbnailData);
+              })
+              .catch((error) => {
+                console.error("Failed to save thumbnail to IndexedDB:", error);
+                resolve(thumbnailData); // Still resolve with thumbnail even if save fails
+              });
+          })
+          .catch((error) => {
+            console.error("Failed to generate thumbnail:", error);
+            // Fallback to legacy data if available
+            resolve(image?.data);
           });
-        }).catch(error => {
-          console.error('Failed to generate thumbnail:', error);
-          // Fallback to legacy data if available
-          resolve(image?.data);
-        });
       }
       // Fallback to legacy data
       else {
@@ -244,7 +213,7 @@ export async function loadImageData(url: string): Promise<string | undefined> {
     };
 
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to load image data'));
+      reject(req.error ?? new Error("Failed to load image data"));
     };
   });
 }
@@ -255,7 +224,7 @@ export async function loadImageData(url: string): Promise<string | undefined> {
 export async function loadImageBlob(url: string): Promise<string | undefined> {
   const db = await initDB();
   return new Promise<string | undefined>((resolve, reject) => {
-    const tx = db.transaction([STORE_NAME], 'readonly');
+    const tx = db.transaction([STORE_NAME], "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(url);
 
@@ -267,17 +236,17 @@ export async function loadImageBlob(url: string): Promise<string | undefined> {
       } else if (image?.data) {
         // Fallback for legacy images stored as base64
         try {
-          const byteCharacters = atob(image.data.split(',')[1] || '');
+          const byteCharacters = atob(image.data.split(",")[1] || "");
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
             byteNumbers[i] = byteCharacters.charCodeAt(i);
           }
           const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'image/jpeg' }); // Default to jpeg, could be updated to detect actual type
+          const blob = new Blob([byteArray], { type: "image/jpeg" }); // Default to jpeg, could be updated to detect actual type
           const blobUrl = URL.createObjectURL(blob);
           resolve(blobUrl);
         } catch (error) {
-          console.error('Error converting base64 data to blob:', error);
+          console.error("Error converting base64 data to blob:", error);
           resolve(undefined);
         }
       } else {
@@ -286,7 +255,7 @@ export async function loadImageBlob(url: string): Promise<string | undefined> {
     };
 
     req.onerror = () => {
-      reject(req.error ?? new Error('Failed to load image blob'));
+      reject(req.error ?? new Error("Failed to load image blob"));
     };
   });
 }
