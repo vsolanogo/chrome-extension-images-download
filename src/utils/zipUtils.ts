@@ -113,7 +113,7 @@ export const createZipFromCapturedImages = async (
     const content = (await chunkZip.generateAsync(
       {
         type: "blob",
-        compression: "DEFLATE",
+        compression: "STORE",
         compressionOptions: { level: 0 },
       },
       (metadata) => {

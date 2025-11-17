@@ -18,7 +18,7 @@ import { createZipFromCapturedImages } from "../utils/zipUtils";
 // Add a global flag to track if a ZIP operation is currently running
 let isZipOperationRunning = false;
 
-// --- NEW: Function to update the badge text ---
+// --- BADGE MANAGEMENT ---
 /**
  * Updates the extension's badge with the current number of captured images.
  * If the count is 0, the badge is hidden.
@@ -40,68 +40,310 @@ async function updateBadge() {
   }
 }
 
-// Function to fetch and store image data
+// --- IMAGE CAPTURE ---
+/**
+ * Checks if an image with the given URL is already captured
+ */
+async function isImageAlreadyCaptured(url: string): Promise<boolean> {
+  const existingImage = await loadImageByUrl(url);
+  return existingImage !== undefined;
+}
+
+/**
+ * Fetches image data from URL
+ */
+async function fetchImageData(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status}`);
+  }
+  return await response.blob();
+}
+
+/**
+ * Creates a CapturedImage object from URL, tabId, and blob data
+ */
+async function createCapturedImage(
+  url: string,
+  tabId: number,
+  blob: Blob,
+): Promise<CapturedImage> {
+  const thumbnail = await generateThumbnailFromBlob(blob);
+
+  return {
+    url,
+    tabId,
+    timestamp: Date.now(),
+    fullData: blob, // Store as blob
+    thumbnailData: thumbnail,
+    fileSize: blob.size, // Store file size as metadata
+    width: 0, // Will be populated later
+    height: 0, // Will be populated later
+  };
+}
+
+/**
+ * Notifies other parts of the extension about a newly captured image
+ */
+function notifyImageCaptured(image: Partial<CapturedImage>) {
+  chrome.runtime
+    .sendMessage({
+      type: "IMAGE_CAPTURED",
+      image: {
+        url: image.url,
+        tabId: image.tabId,
+        timestamp: image.timestamp,
+        // Do not send thumbnailData from background since we're not generating it here
+      },
+    })
+    .catch((error) => {
+      // It's okay if no receivers are open
+      console.log(
+        "Error sending IMAGE_CAPTURED message (no receivers):",
+        error,
+      );
+    });
+}
+
+/**
+ * Main function to fetch and store image data
+ */
 async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
   try {
-    // Check if image is already captured by looking for the URL in the database
-    const existingImage = await loadImageByUrl(url);
-    if (existingImage) {
+    // Check if image is already captured
+    if (await isImageAlreadyCaptured(url)) {
       console.log("Image already captured:", url);
       return;
     }
 
-    // Fetch image data as Blob
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.status}`);
-    }
+    // Fetch image data
+    const blob = await fetchImageData(url);
 
-    const blob = await response.blob();
-    const thumbnail = await generateThumbnailFromBlob(blob);
-
-    // Create image object with full blob (thumbnail will be generated in UI)
-    const imageObj: CapturedImage = {
-      url,
-      tabId,
-      timestamp: Date.now(),
-      fullData: blob, // Store as blob
-      thumbnailData: thumbnail,
-      fileSize: blob.size, // Store file size as metadata
-      width: 0, // Will be populated later
-      height: 0, // Will be populated later
-    };
+    // Create image object
+    const imageObj = await createCapturedImage(url, tabId, blob);
 
     // Store in IndexedDB
     await saveImage(imageObj);
-    console.log("Image saved to IndexedDB:", "URL:", imageObj.url);
 
-    // --- NEW: Update the badge after a new image is saved ---
+    // Update the badge after a new image is saved
     await updateBadge();
 
-    // Send message to any open views that a new image was captured (metadata only)
-    // This is kept for immediate UI updates
-    chrome.runtime
-      .sendMessage({
-        type: "IMAGE_CAPTURED",
-        image: {
-          url: imageObj.url,
-          tabId: imageObj.tabId,
-          timestamp: imageObj.timestamp,
-          // Do not send thumbnailData from background since we're not generating it here
-        },
-      })
-      .catch((error) => {
-        // It's okay if no receivers are open
-        console.log(
-          "Error sending IMAGE_CAPTURED message (no receivers):",
-          error,
-        );
-      });
+    // Send message to any open views that a new image was captured
+    notifyImageCaptured(imageObj);
   } catch (error) {
     console.error("Error capturing image:", url, error);
   }
 }
 
+// --- ZIP DOWNLOAD ---
+/**
+ * Converts a Blob to a Data URL
+ */
+const blobToDataURL = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () =>
+      reject(new Error("Failed to convert Blob to Data URL"));
+    reader.readAsDataURL(blob);
+  });
+};
+
+/**
+ * Downloads a single blob as a file with the given filename
+ */
+async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
+  const dataUrl = await blobToDataURL(blob);
+
+  return new Promise<void>((resolve, reject) => {
+    chrome.downloads.download(
+      {
+        url: dataUrl,
+        filename: fileName,
+        saveAs: false,
+      },
+      (downloadId) => {
+        if (chrome.runtime.lastError) {
+          console.error("Download error:", chrome.runtime.lastError);
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        // Listen for download completion
+        const listener = (delta: chrome.downloads.DownloadDelta) => {
+          if (delta.id !== downloadId) return;
+
+          if (delta.state?.current === "complete") {
+            chrome.downloads.onChanged.removeListener(listener);
+            resolve();
+          } else if (delta.state?.current === "interrupted") {
+            chrome.downloads.onChanged.removeListener(listener);
+            reject(new Error("Download was interrupted"));
+          }
+        };
+
+        chrome.downloads.onChanged.addListener(listener);
+      },
+    );
+  });
+}
+
+/**
+ * Downloads all ZIP blobs
+ */
+async function downloadZipBlobs(zipBlobs: Blob[]): Promise<void> {
+  const datePart = new Date().toISOString().slice(0, 10);
+
+  for (let i = 0; i < zipBlobs.length; i++) {
+    const blob = zipBlobs[i];
+    if (!blob) continue; // ensures blob is not undefined
+
+    const fileName =
+      zipBlobs.length > 1
+        ? `captured-images-${datePart}-part-${i + 1}.zip`
+        : `captured-images-${datePart}.zip`;
+
+    await downloadBlob(blob, fileName);
+  }
+}
+
+/**
+ * Notifies about ZIP download completion
+ */
+function notifyZipDownloadComplete(success: boolean, message?: string) {
+  chrome.runtime
+    .sendMessage({
+      type: success ? "ZIP_DOWNLOAD_COMPLETE" : "ZIP_DOWNLOAD_ERROR",
+      success,
+      message:
+        message ||
+        (success ? "All ZIP files downloaded successfully" : undefined),
+    })
+    .catch(() => {
+      // Ignore errors if no receivers are open
+    });
+}
+
+/**
+ * Main function to handle ZIP download in the background
+ */
+async function handleZipDownload() {
+  try {
+    const allImages = await loadAllImages();
+
+    if (allImages.length === 0) {
+      console.log("No images to download");
+      return;
+    }
+
+    const zipBlobs = await createZipFromCapturedImages(
+      JSZip,
+      allImages,
+      (progress: number, _message: string) => {
+        chrome.action.setBadgeText({ text: `${progress}%` });
+        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for progress
+      },
+    );
+
+    await updateBadge();
+    await downloadZipBlobs(zipBlobs);
+    notifyZipDownloadComplete(true);
+  } catch (error: any) {
+    console.error("Error in handleZipDownload:", error);
+    notifyZipDownloadComplete(
+      false,
+      error.message || "An unknown error occurred",
+    );
+
+    throw error;
+  }
+}
+
+// --- MESSAGE HANDLERS ---
+/**
+ * Handles CLEAR_CAPTURED_IMAGES message
+ */
+async function handleClearCapturedImages(
+  sendResponse: (response: any) => void,
+) {
+  try {
+    await clearAllImages();
+    await updateBadge();
+    sendResponse({ type: "CLEAR_RESPONSE", success: true });
+  } catch (error) {
+    console.error("Error clearing images:", error);
+    sendResponse({ type: "CLEAR_RESPONSE", success: false });
+  }
+}
+
+/**
+ * Handles DELETE_IMAGE message
+ */
+async function handleDeleteImage(
+  message: any,
+  sendResponse: (response: any) => void,
+) {
+  const imageId = message.imageId;
+  try {
+    await deleteImage(imageId);
+    await updateBadge();
+    sendResponse({ type: "DELETE_RESPONSE", success: true });
+  } catch (error) {
+    console.error("Error deleting image:", error);
+    sendResponse({ type: "DELETE_RESPONSE", success: false });
+  }
+}
+
+/**
+ * Handles CHECK_AND_CAPTURE_IMAGE message
+ */
+async function handleCheckAndCaptureImage(
+  message: any,
+  sendResponse: (response: any) => void,
+) {
+  const { url, tabId } = message;
+  if (url) {
+    try {
+      await fetchAndStoreImage(url, tabId);
+    } catch (error) {
+      console.error("Error capturing image from content script:", url, error);
+    }
+  }
+  sendResponse({ type: "IMAGE_CHECKED", success: true });
+}
+
+/**
+ * Handles ZIP_AND_DOWNLOAD_ALL_IMAGES message
+ */
+function handleZipAndDownloadAllImages(sendResponse: (response: any) => void) {
+  if (isZipOperationRunning) {
+    console.log("ZIP operation already in progress, ignoring request");
+    sendResponse({
+      type: "ZIP_DOWNLOAD_COMPLETE",
+      success: false,
+      error: "Zip operation already in progress",
+    });
+    return;
+  }
+  // Start the ZIP process in the background
+  isZipOperationRunning = true;
+  handleZipDownload()
+    .then(() => {
+      isZipOperationRunning = false;
+      sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: true });
+    })
+    .catch((error) => {
+      console.error("Error during ZIP download:", error);
+      isZipOperationRunning = false;
+      sendResponse({
+        type: "ZIP_DOWNLOAD_COMPLETE",
+        success: false,
+        error: error.message,
+      });
+    });
+}
+
+// --- LISTENERS (KEPT AS REQUESTED) ---
 // Web request listener to capture images
 chrome.webRequest.onCompleted.addListener(
   (details) => {
@@ -120,14 +362,6 @@ chrome.webRequest.onCompleted.addListener(
       details.url &&
       (isImageByContentType || hasImageExtension)
     ) {
-      console.log(
-        "Image request detected:",
-        details.url,
-        "Content-Type:",
-        contentType,
-        "Tab ID:",
-        details.tabId,
-      );
       fetchAndStoreImage(details.url, details.tabId);
     }
   },
@@ -140,216 +374,33 @@ chrome.webRequest.onCompleted.addListener(
 
 // Listen for messages from popup/side panel and content scripts
 chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
-  console.log("Background received message:", message.type);
+  switch (message.type) {
+    case "CLEAR_CAPTURED_IMAGES":
+      handleClearCapturedImages(sendResponse);
+      return true; // Keep async response
 
-  // --- HANDLERS FOR DATA MODIFICATION (KEPT) ---
-  if (message.type === "CLEAR_CAPTURED_IMAGES") {
-    clearAllImages()
-      .then(async () => {
-        // Made callback async to use await
-        // --- NEW: Update the badge after clearing all images ---
-        await updateBadge();
-        sendResponse({ type: "CLEAR_RESPONSE", success: true });
-      })
-      .catch((error) => {
-        console.error("Error clearing images:", error);
-        sendResponse({ type: "CLEAR_RESPONSE", success: false });
-      });
-    return true; // Keep async response
-  } else if (message.type === "DELETE_IMAGE") {
-    const imageId = message.imageId;
-    deleteImage(imageId)
-      .then(async () => {
-        // Made callback async to use await
-        // --- NEW: Update the badge after deleting an image ---
-        await updateBadge();
-        sendResponse({ type: "DELETE_RESPONSE", success: true });
-      })
-      .catch((error) => {
-        console.error("Error deleting image:", error);
-        sendResponse({ type: "DELETE_RESPONSE", success: false });
-      });
-    return true; // Keep async response
-  } else if (message.type === "CHECK_AND_CAPTURE_IMAGE") {
-    // Capture image from content script
-    const { url, tabId } = message;
-    if (url) {
-      fetchAndStoreImage(url, tabId).catch((error) => {
-        console.error("Error capturing image from content script:", url, error);
-      });
-    }
-    sendResponse({ type: "IMAGE_CHECKED", success: true });
-    return true; // Keep async response
+    case "DELETE_IMAGE":
+      handleDeleteImage(message, sendResponse);
+      return true; // Keep async response
+
+    case "CHECK_AND_CAPTURE_IMAGE":
+      handleCheckAndCaptureImage(message, sendResponse);
+      return true; // Keep async response
+
+    case "ZIP_AND_DOWNLOAD_ALL_IMAGES":
+      handleZipAndDownloadAllImages(sendResponse);
+      return true; // Keep async response
+
+    default:
+      return false; // No async response
   }
-
-  // Handle ZIP download request from popup
-  if (message.type === "ZIP_AND_DOWNLOAD_ALL_IMAGES") {
-    if (isZipOperationRunning) {
-      console.log("ZIP operation already in progress, ignoring request");
-      sendResponse({
-        type: "ZIP_DOWNLOAD_COMPLETE",
-        success: false,
-        error: "Zip operation already in progress",
-      });
-      return false;
-    }
-
-    // Start the ZIP process in the background
-    isZipOperationRunning = true;
-    handleZipDownload()
-      .then(() => {
-        console.log("ZIP download completed");
-        isZipOperationRunning = false;
-        sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: true });
-      })
-      .catch((error) => {
-        console.error("Error during ZIP download:", error);
-        isZipOperationRunning = false;
-        sendResponse({
-          type: "ZIP_DOWNLOAD_COMPLETE",
-          success: false,
-          error: error.message,
-        });
-      });
-    return true; // Keep async response
-  }
-
-  return false; // No async response
 });
-
-// Function to handle ZIP download in the background
-async function handleZipDownload() {
-  try {
-    console.log("Starting ZIP download in background...");
-
-    // Load all images from IndexedDB
-    const allImages = await loadAllImages();
-    console.log(`Loaded ${allImages.length} images for ZIP download`);
-
-    if (allImages.length === 0) {
-      console.log("No images to download");
-      return;
-    }
-
-    // Create ZIP files from images with progress tracking
-    const zipBlobs = await createZipFromCapturedImages(
-      JSZip,
-      allImages,
-      (progress: number, _message: string) => {
-        // Update badge with progress percentage
-        chrome.action.setBadgeText({ text: `${progress}%` });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for progress
-      },
-    );
-
-    // Restore the image count on the badge after completion
-    await updateBadge();
-
-    console.log(`Created ${zipBlobs.length} ZIP files`);
-
-    // Create a function to convert Blob to Data URL
-    const blobToDataURL = (blob: Blob): Promise<string> => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () =>
-          reject(new Error("Failed to convert Blob to Data URL"));
-        reader.readAsDataURL(blob);
-      });
-    };
-
-    // Download each ZIP blob using the chrome.downloads API
-    for (let i = 0; i < zipBlobs.length; i++) {
-      const blob = zipBlobs[i];
-      const datePart = new Date().toISOString().slice(0, 10);
-      const fileName =
-        zipBlobs.length > 1
-          ? `captured-images-${datePart}-part-${i + 1}.zip`
-          : `captured-images-${datePart}.zip`;
-
-      // Convert blob to data URL for download (using service worker compatible approach)
-      const dataUrl = await blobToDataURL(blob!); // Use ! since we know it's not undefined here
-
-      // Use chrome.downloads API to download the file
-      await new Promise<void>((resolve, reject) => {
-        chrome.downloads.download(
-          {
-            url: dataUrl,
-            filename: fileName,
-            saveAs: false,
-          },
-          (downloadId) => {
-            if (chrome.runtime.lastError) {
-              console.error("Download error:", chrome.runtime.lastError);
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              console.log(`Download started with ID: ${downloadId}`);
-              // Listen for download completion
-              chrome.downloads.onChanged.addListener(function listener(delta) {
-                if (
-                  delta.id === downloadId &&
-                  delta.state &&
-                  delta.state.current === "complete"
-                ) {
-                  chrome.downloads.onChanged.removeListener(listener);
-                  // Note: No need to revoke Data URLs (unlike Object URLs)
-                  resolve();
-                } else if (
-                  delta.id === downloadId &&
-                  delta.state &&
-                  delta.state.current === "interrupted"
-                ) {
-                  chrome.downloads.onChanged.removeListener(listener);
-                  reject(new Error("Download was interrupted"));
-                }
-              });
-            }
-          },
-        );
-      });
-    }
-
-    console.log("All ZIP files downloaded successfully");
-
-    // Send completion message
-    chrome.runtime
-      .sendMessage({
-        type: "ZIP_DOWNLOAD_COMPLETE",
-        success: true,
-        message: "All ZIP files downloaded successfully",
-      })
-      .catch(() => {
-        // Ignore errors if no receivers are open
-      });
-  } catch (error: any) {
-    console.error("Error in handleZipDownload:", error);
-
-    // Send error message
-    chrome.runtime
-      .sendMessage({
-        type: "ZIP_DOWNLOAD_ERROR",
-        success: false,
-        error: error.message || "An unknown error occurred",
-      })
-      .catch(() => {
-        // Ignore errors if no receivers are open
-      });
-
-    throw error;
-  }
-}
 
 // Clear all captured images on browser startup
 chrome.runtime.onStartup.addListener(() => {
-  console.log(
-    "Browser started up, clearing all captured images from IndexedDB",
-  );
   clearAllImages()
     .then(async () => {
-      // Made callback async to use await
-      // --- NEW: Update the badge after clearing on startup ---
       await updateBadge();
-      console.log("All images cleared on startup");
     })
     .catch((error) => {
       console.error("Error clearing images on startup:", error);
@@ -361,59 +412,26 @@ chrome.runtime.onInstalled.addListener(() => {
   // Remove existing context menu items to avoid duplicates
   chrome.contextMenus.removeAll(() => {
     // Create a context menu item for clearing all images
-    chrome.contextMenus.create(
-      {
-        id: "clearAllCapturedImages",
-        title: "Clear All Captured Images",
-        contexts: ["action"], // Shows in the extension's action button context menu
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "Error creating clear all context menu:",
-            chrome.runtime.lastError,
-          );
-        } else {
-          console.log("Clear all context menu created successfully");
-        }
-      },
-    );
+    chrome.contextMenus.create({
+      id: "clearAllCapturedImages",
+      title: "Clear All Captured Images",
+      contexts: ["action"],
+    });
 
-    // Create a context menu item for downloading all images as ZIP
-    chrome.contextMenus.create(
-      {
-        id: "downloadAllAsZip",
-        title: "Download All Images as ZIP",
-        contexts: ["action"], // Shows in the extension's action button context menu
-      },
-      () => {
-        if (chrome.runtime.lastError) {
-          console.error(
-            "Error creating download ZIP context menu:",
-            chrome.runtime.lastError,
-          );
-        } else {
-          console.log("Download ZIP context menu created successfully");
-        }
-      },
-    );
+    chrome.contextMenus.create({
+      id: "downloadAllAsZip",
+      title: "Download All Images as ZIP",
+      contexts: ["action"],
+    });
   });
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
   if (info.menuItemId === "clearAllCapturedImages") {
-    console.log("Context menu: Clear all captured images selected");
-
     try {
-      // Clear all images from IndexedDB
       await clearAllImages();
-      console.log("All captured images cleared from IndexedDB");
-
-      // Update the badge to reflect the change
       await updateBadge();
-
-      // Send message to any open views that images were cleared (for UI updates)
       chrome.runtime
         .sendMessage({
           type: "IMAGES_CLEARED",
@@ -438,11 +456,8 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
         });
     }
   } else if (info.menuItemId === "downloadAllAsZip") {
-    console.log("Context menu: Download all images as ZIP selected");
-
     // Check if ZIP operation is already running
     if (isZipOperationRunning) {
-      console.log("ZIP operation already in progress, ignoring request");
       return;
     }
 
@@ -479,16 +494,9 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
   }
 });
 
-// Log startup message after everything is set up
+// Initialize on load
 loadAllImages()
-  .then(async (images) => {
-    // Made callback async to use await
-    console.log(
-      "Loaded",
-      images.length,
-      "previously captured images from IndexedDB",
-    );
-    // --- NEW: Set the initial badge count when the background script loads ---
+  .then(async () => {
     await updateBadge();
   })
   .catch((error) => {
