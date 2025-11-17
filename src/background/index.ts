@@ -150,6 +150,27 @@ const blobToDataURL = (blob: Blob): Promise<string> => {
 };
 
 /**
+ * Helper function to wait for download completion
+ */
+const waitForDownloadComplete = (downloadId: number): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const listener = (delta: chrome.downloads.DownloadDelta) => {
+      if (delta.id !== downloadId) return;
+
+      if (delta.state?.current === "complete") {
+        chrome.downloads.onChanged.removeListener(listener);
+        resolve();
+      } else if (delta.state?.current === "interrupted") {
+        chrome.downloads.onChanged.removeListener(listener);
+        reject(new Error("Download was interrupted"));
+      }
+    };
+
+    chrome.downloads.onChanged.addListener(listener);
+  });
+};
+
+/**
  * Downloads a single blob as a file with the given filename
  */
 async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
@@ -169,20 +190,10 @@ async function downloadBlob(blob: Blob, fileName: string): Promise<void> {
           return;
         }
 
-        // Listen for download completion
-        const listener = (delta: chrome.downloads.DownloadDelta) => {
-          if (delta.id !== downloadId) return;
-
-          if (delta.state?.current === "complete") {
-            chrome.downloads.onChanged.removeListener(listener);
-            resolve();
-          } else if (delta.state?.current === "interrupted") {
-            chrome.downloads.onChanged.removeListener(listener);
-            reject(new Error("Download was interrupted"));
-          }
-        };
-
-        chrome.downloads.onChanged.addListener(listener);
+        // Wait for download completion
+        waitForDownloadComplete(downloadId)
+          .then(() => resolve())
+          .catch((error) => reject(error));
       },
     );
   });
@@ -315,7 +326,9 @@ async function handleCheckAndCaptureImage(
 /**
  * Handles ZIP_AND_DOWNLOAD_ALL_IMAGES message
  */
-function handleZipAndDownloadAllImages(sendResponse: (response: any) => void) {
+async function handleZipAndDownloadAllImages(
+  sendResponse: (response: any) => void,
+) {
   if (isZipOperationRunning) {
     console.log("ZIP operation already in progress, ignoring request");
     sendResponse({
@@ -325,22 +338,22 @@ function handleZipAndDownloadAllImages(sendResponse: (response: any) => void) {
     });
     return;
   }
-  // Start the ZIP process in the background
-  isZipOperationRunning = true;
-  handleZipDownload()
-    .then(() => {
-      isZipOperationRunning = false;
-      sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: true });
-    })
-    .catch((error) => {
-      console.error("Error during ZIP download:", error);
-      isZipOperationRunning = false;
-      sendResponse({
-        type: "ZIP_DOWNLOAD_COMPLETE",
-        success: false,
-        error: error.message,
-      });
+
+  try {
+    // Start the ZIP process in the background
+    isZipOperationRunning = true;
+    await handleZipDownload();
+    isZipOperationRunning = false;
+    sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: true });
+  } catch (error: any) {
+    console.error("Error during ZIP download:", error);
+    isZipOperationRunning = false;
+    sendResponse({
+      type: "ZIP_DOWNLOAD_COMPLETE",
+      success: false,
+      error: error.message,
     });
+  }
 }
 
 // --- LISTENERS (KEPT AS REQUESTED) ---
@@ -397,14 +410,13 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 });
 
 // Clear all captured images on browser startup
-chrome.runtime.onStartup.addListener(() => {
-  clearAllImages()
-    .then(async () => {
-      await updateBadge();
-    })
-    .catch((error) => {
-      console.error("Error clearing images on startup:", error);
-    });
+chrome.runtime.onStartup.addListener(async () => {
+  try {
+    await clearAllImages();
+    await updateBadge();
+  } catch (error) {
+    console.error("Error clearing images on startup:", error);
+  }
 });
 
 // Set up context menu when extension is installed
@@ -461,44 +473,44 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
       return;
     }
 
-    // Reuse the existing handleZipDownload functionality
-    // Start the ZIP download process in the background
-    isZipOperationRunning = true;
-    handleZipDownload()
-      .then(() => {
-        console.log("ZIP download completed from context menu");
-        isZipOperationRunning = false;
+    try {
+      // Reuse the existing handleZipDownload functionality
+      // Start the ZIP download process in the background
+      isZipOperationRunning = true;
+      await handleZipDownload();
+      console.log("ZIP download completed from context menu");
+      isZipOperationRunning = false;
 
-        // Update badge to show completion temporarily
-        chrome.action.setBadgeText({ text: "OK" });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for success
+      // Update badge to show completion temporarily
+      chrome.action.setBadgeText({ text: "OK" });
+      chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for success
 
-        // Restore the image count on the badge after a short delay
-        setTimeout(async () => {
-          await updateBadge(); // This will set the badge back to the image count
-        }, 2000);
-      })
-      .catch((error) => {
-        console.error("Error in context menu ZIP download:", error);
-        isZipOperationRunning = false;
+      // Restore the image count on the badge after a short delay
+      setTimeout(async () => {
+        await updateBadge(); // This will set the badge back to the image count
+      }, 2000);
+    } catch (error) {
+      console.error("Error in context menu ZIP download:", error);
+      isZipOperationRunning = false;
 
-        // Update badge to show error temporarily
-        chrome.action.setBadgeText({ text: "ERR" });
-        chrome.action.setBadgeBackgroundColor({ color: "#f44336" }); // Red for error
+      // Update badge to show error temporarily
+      chrome.action.setBadgeText({ text: "ERR" });
+      chrome.action.setBadgeBackgroundColor({ color: "#f44336" }); // Red for error
 
-        // Restore the image count on the badge after a short delay
-        setTimeout(async () => {
-          await updateBadge(); // This will set the badge back to the image count
-        }, 2000);
-      });
+      // Restore the image count on the badge after a short delay
+      setTimeout(async () => {
+        await updateBadge(); // This will set the badge back to the image count
+      }, 2000);
+    }
   }
 });
 
 // Initialize on load
-loadAllImages()
-  .then(async () => {
+(async () => {
+  try {
+    await loadAllImages();
     await updateBadge();
-  })
-  .catch((error) => {
+  } catch (error) {
     console.error("Error loading images on startup:", error);
-  });
+  }
+})();
