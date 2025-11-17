@@ -1,4 +1,4 @@
-# Image Capture Extension
+# Image Capture Browser Extension
 
 ![Image Capture Extension](src/assets/logo.png)
 
