@@ -1,122 +1,111 @@
-import { useState, useEffect, useRef } from 'react';
-import { CapturedImage, loadAllImages, loadImageData, countImages } from '../utils/indexedDBUtils';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { loadAllImages, countImages } from "../utils/indexedDBUtils";
 
-// Define a type for the view state that excludes the full blob data
 interface ImageMetadata {
   url: string;
   tabId: number;
   timestamp: number;
-  thumbnailData?: string; // Only thumbnail for UI display
+  thumbnailData?: string;
   fileSize?: number;
   width?: number;
   height?: number;
-  // We keep data field for backward compatibility
-  data?: string;
 }
 
-// Custom hook to manage captured images
 export const useCapturedImages = () => {
   const [images, setImages] = useState<ImageMetadata[]>([]);
   const [imageCount, setImageCount] = useState(0);
+  const mountedRef = useRef(true);
 
-  // Function to load images directly from IndexedDB
-  const loadImagesFromIndexedDB = async () => {
+  // Stable loader that returns the metadata and count (doesn't set state directly)
+  const fetchImages = useCallback(async () => {
     try {
-      // First, get the count of images
       const count = await countImages();
+      const allImages = await loadAllImages();
 
-      // Only fetch the full dataset if the count differs from current state
-      if (count !== images.length) {
-        const allImages = await loadAllImages();
-        console.log('Loaded images from IndexedDB:', allImages.length);
-
-        // Map to only include metadata and thumbnails (not full blobs) in state
-        const imageMetadata = allImages.map(img => ({
+      const imageMetadata: ImageMetadata[] = allImages.map((img) => {
+        const metadata: ImageMetadata = {
           url: img.url,
           tabId: img.tabId,
           timestamp: img.timestamp,
-          thumbnailData: img.thumbnailData,
-          fileSize: img.fileSize,
-          width: img.width,
-          height: img.height,
-          data: img.data // For backward compatibility
-        }));
+        };
+        if (img.thumbnailData !== undefined)
+          metadata.thumbnailData = img.thumbnailData;
+        if (img.fileSize !== undefined) metadata.fileSize = img.fileSize;
+        if (img.width !== undefined) metadata.width = img.width;
+        if (img.height !== undefined) metadata.height = img.height;
+        return metadata;
+      });
 
-        setImages(imageMetadata);
-        setImageCount(allImages.length);
-      } else {
-        // Update count in state in case it was zero initially
-        setImageCount(count);
-      }
+      return { metadata: imageMetadata, count };
     } catch (error) {
-      console.error('Error loading images from IndexedDB:', error);
-      setImages([]);
-      setImageCount(0);
+      console.error("Error loading images from IndexedDB:", error);
+      return { metadata: [] as ImageMetadata[], count: 0 };
     }
-  };
+  }, []);
 
-  // Load captured images on component mount
+  // Safe setter that updates state only if still mounted
+  const loadImagesFromIndexedDB = useCallback(async () => {
+    const { metadata, count } = await fetchImages();
+    if (!mountedRef.current) return;
+    setImages(metadata);
+    setImageCount(count);
+  }, [fetchImages]);
+
   useEffect(() => {
-    loadImagesFromIndexedDB();
+    mountedRef.current = true;
 
-    // Listen for new images captured in real-time (optional, for immediate updates)
-    const messageListener = (message: any) => {
-      if (message.type === 'IMAGE_CAPTURED') {
-        console.log('New image received:', message.image);
-        loadImagesFromIndexedDB(); // Refresh immediately when new image is captured
+    // Defer the load so setState does not run synchronously inside the effect body.
+    // Promise.resolve().then(...) schedules the work after the current microtask,
+    // avoiding the "sync setState in effect" warning.
+    Promise.resolve().then(() => {
+      loadImagesFromIndexedDB();
+    });
+
+    // Listener for runtime messages
+    const messageListener = (
+      message: any,
+      _sender?: any,
+      _sendResponse?: any,
+    ) => {
+      if (message?.type === "IMAGE_CAPTURED") {
+        // Refresh after a capture; use the same safe loader.
+        loadImagesFromIndexedDB();
       }
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
 
-    // Clean up listener on unmount
     return () => {
+      mountedRef.current = false;
       chrome.runtime.onMessage.removeListener(messageListener);
     };
-  }, []); // Empty dependency array to run only once
+  }, [loadImagesFromIndexedDB]);
 
-  // Function to delete an image
+  // Function to delete an image (updates state locally, calls background)
   const deleteImage = async (imageUrl: string) => {
     try {
-      // Call the background script to handle deletion
-      chrome.runtime.sendMessage({ type: 'DELETE_IMAGE', imageId: imageUrl });
-      // Also update local state immediately for better UX
+      chrome.runtime.sendMessage({ type: "DELETE_IMAGE", imageId: imageUrl });
+
+      // Compute new images and count outside of a nested setState call
       setImages((prevImages) => {
-        const updatedImages = prevImages.filter((img) => img.url !== imageUrl);
-        setImageCount(updatedImages.length);
-        return updatedImages;
+        const updated = prevImages.filter((img) => img.url !== imageUrl);
+        // update count separately (keeps updates clear and avoids nested setState)
+        setImageCount(updated.length);
+        return updated;
       });
     } catch (error) {
-      console.error('Error deleting image:', error);
+      console.error("Error deleting image:", error);
     }
   };
 
-  // Function to clear all images
   const clearAllImages = async () => {
     try {
-      // Call the background script to handle clearing
-      chrome.runtime.sendMessage({ type: 'CLEAR_CAPTURED_IMAGES' });
-      // Also update local state immediately for better UX
+      chrome.runtime.sendMessage({ type: "CLEAR_CAPTURED_IMAGES" });
       setImages([]);
       setImageCount(0);
     } catch (error) {
-      console.error('Error clearing images:', error);
+      console.error("Error clearing images:", error);
     }
-  };
-
-  // Function to download an image
-  const downloadImage = async (image: ImageMetadata) => {
-    // Load the image data if not already present
-    const imageData = image.data || await loadImageData(image.url);
-    if (!imageData) return;
-
-    const a = document.createElement('a');
-    a.href = imageData;
-    const ext = image.url.split('.').pop()?.toLowerCase() || 'png';
-    a.download = `captured-image-${image.url.substring(image.url.lastIndexOf('/') + 1, image.url.lastIndexOf('.') || image.url.length) || 'image'}.${ext}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   return {
@@ -124,6 +113,5 @@ export const useCapturedImages = () => {
     imageCount,
     deleteImage,
     clearAllImages,
-    downloadImage,
   };
 };

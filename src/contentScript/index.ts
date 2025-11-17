@@ -1,8 +1,8 @@
 // contentScript.ts
-console.info('contentScript is running');
+console.info("contentScript is running");
 
 type CaptureMessage = {
-  type: 'CHECK_AND_CAPTURE_IMAGE';
+  type: "CHECK_AND_CAPTURE_IMAGE";
   url: string;
 };
 
@@ -18,7 +18,7 @@ function sendCaptureMessage(url: string) {
   if (seenUrls.has(url)) return;
   seenUrls.add(url);
 
-  const msg: CaptureMessage = { type: 'CHECK_AND_CAPTURE_IMAGE', url };
+  const msg: CaptureMessage = { type: "CHECK_AND_CAPTURE_IMAGE", url };
   chrome.runtime.sendMessage(msg);
 }
 
@@ -38,13 +38,13 @@ function processNode(node: Node) {
   if (node.nodeType !== Node.ELEMENT_NODE) return;
   const el = node as Element;
 
-  if (el.matches && el.matches('img')) {
+  if (el.matches && el.matches("img")) {
     processImageElement(el as HTMLImageElement);
     return;
   }
 
   // Query contained images (fast for subtree scans)
-  const imgs = el.querySelectorAll('img');
+  const imgs = el.querySelectorAll("img");
   for (const img of Array.from(imgs)) {
     processImageElement(img as HTMLImageElement);
   }
@@ -52,7 +52,7 @@ function processNode(node: Node) {
 
 /** Capture all currently present images on the page. */
 function capturePageImages() {
-  const imgs = document.querySelectorAll('img');
+  const imgs = document.querySelectorAll("img");
   for (const img of Array.from(imgs)) {
     processImageElement(img as HTMLImageElement);
   }
@@ -62,7 +62,7 @@ function capturePageImages() {
 function observeForNewImages() {
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
-      if (mutation.type !== 'childList') continue;
+      if (mutation.type !== "childList") continue;
 
       // process directly added nodes
       for (const node of Array.from(mutation.addedNodes)) {
@@ -74,7 +74,7 @@ function observeForNewImages() {
   observer.observe(document.body, { childList: true, subtree: true });
 
   // Optional: disconnect observer on page unload to avoid leaks
-  window.addEventListener('beforeunload', () => observer.disconnect());
+  window.addEventListener("beforeunload", () => observer.disconnect());
 }
 
 /** Simple debounce helper for refresh requests. */
@@ -94,7 +94,7 @@ observeForNewImages();
 
 // Listen for commands from the background script
 chrome.runtime.onMessage.addListener((message: any, _sender, _sendResponse) => {
-  if (message?.type === 'REFRESH_PAGE_IMAGES') {
+  if (message?.type === "REFRESH_PAGE_IMAGES") {
     debouncedCapture();
   }
 });

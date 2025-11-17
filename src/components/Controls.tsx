@@ -25,10 +25,10 @@ export const Controls: React.FC<ControlsProps> = ({
   downloadDisabled = false,
   isZipDownloading = false,
   progress,
-  className = '',
+  className = "",
 }) => {
   const handleDownloadAll = () => {
-    onDownloadAll((progress) => {
+    onDownloadAll((_) => {
       // Progress will be handled by parent component state
     });
   };
@@ -44,10 +44,15 @@ export const Controls: React.FC<ControlsProps> = ({
       >
         {isZipDownloading ? (
           <span>
-            <span className="spinner">⏳</span> {progress?.message || 'Processing...'} {progress && progress.progress !== null && progress.progress > 0 && `(${progress.progress}%)`}
+            <span className="spinner">⏳</span>{" "}
+            {progress?.message || "Processing..."}{" "}
+            {progress &&
+              progress.progress !== null &&
+              progress.progress > 0 &&
+              `(${progress.progress}%)`}
           </span>
         ) : (
-          'Download All as ZIP'
+          "Download All as ZIP"
         )}
       </button>
     </div>

@@ -1,12 +1,12 @@
 // src/sidepanel/SidePanel.tsx
-import React, { useState } from 'react';
-import '../styles/common.css';
-import './SidePanel.css';
-import { ImageList } from '../components/ImageList';
-import { Controls } from '../components/Controls';
-import { useCapturedImages } from '../hooks/useCapturedImages';
-import { useDownload } from '../hooks/useDownload';
-import { loadAllImages } from '../utils/indexedDBUtils';
+import { useState } from "react";
+import "../styles/common.css";
+import "./SidePanel.css";
+import { ImageList } from "../components/ImageList";
+import { Controls } from "../components/Controls";
+import { useCapturedImages } from "../hooks/useCapturedImages";
+import { useDownload } from "../hooks/useDownload";
+import { loadAllImages } from "../utils/indexedDBUtils";
 
 interface DownloadProgress {
   isDownloading: boolean;
@@ -17,15 +17,23 @@ interface DownloadProgress {
 }
 
 export const SidePanel = () => {
-  const { images, imageCount, deleteImage, clearAllImages, downloadImage } = useCapturedImages();
+  const { images, imageCount, deleteImage, clearAllImages } =
+    useCapturedImages();
   const { downloadAllImagesAsZip: downloadAll, isDownloading } = useDownload();
   const [zipProgress, setZipProgress] = useState<DownloadProgress | null>(null);
-  const link = 'https://github.com/guocaoyi/create-chrome-ext';
+  const link = "https://github.com/vsolanogo/chrome-extension-images-download";
 
-  console.log('SidePanel - Images count:', imageCount, 'Images array length:', images.length);
+  console.log(
+    "SidePanel - Images count:",
+    imageCount,
+    "Images array length:",
+    images.length,
+  );
 
   // Function to download all images as a zip
-  const downloadAllImagesAsZip = async (onProgress?: (progress: DownloadProgress) => void) => {
+  const downloadAllImagesAsZip = async (
+    onProgress?: (progress: DownloadProgress) => void,
+  ) => {
     try {
       // Load images directly from IndexedDB
       const allImages = await loadAllImages();
@@ -34,7 +42,7 @@ export const SidePanel = () => {
         onProgress?.(progress);
       });
     } catch (error) {
-      console.error('Error downloading all images:', error);
+      console.error("Error downloading all images:", error);
     }
   };
 
@@ -47,22 +55,19 @@ export const SidePanel = () => {
         count={imageCount}
         downloadDisabled={isDownloading}
         isZipDownloading={isDownloading}
-        progress={{ isDownloading, progress: zipProgress?.progress || null, message: zipProgress?.message || '', currentChunk: null, totalChunks: null }}
+        progress={{
+          isDownloading,
+          progress: zipProgress?.progress || null,
+          message: zipProgress?.message || "",
+          currentChunk: null,
+          totalChunks: null,
+        }}
         className="sidepanel-controls"
       />
-      <div className="image-count">
-        Captured Images: {imageCount}
-      </div>
+      <div className="image-count">Captured Images: {imageCount}</div>
       <ImageList
         images={images}
         onDelete={deleteImage}
-        onDownload={async (image) => {
-          try {
-            await downloadImage(image);
-          } catch (error) {
-            console.error('Error downloading image:', error);
-          }
-        }}
         showUrls={true}
         urlLength={50}
         itemClassName="sidepanel-image-item"

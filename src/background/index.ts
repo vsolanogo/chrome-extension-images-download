@@ -62,8 +62,8 @@ async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
       fullData: blob, // Store as blob
       thumbnailData: thumbnail,
       fileSize: blob.size, // Store file size as metadata
-      width: undefined, // Will be populated later
-      height: undefined, // Will be populated later
+      width: 0, // Will be populated later
+      height: 0, // Will be populated later
     };
 
     // Store in IndexedDB
@@ -89,7 +89,7 @@ async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
         // It's okay if no receivers are open
         console.log(
           "Error sending IMAGE_CAPTURED message (no receivers):",
-          error
+          error,
         );
       });
   } catch (error) {
@@ -102,12 +102,12 @@ chrome.webRequest.onCompleted.addListener(
   (details) => {
     const contentType =
       details.responseHeaders?.find(
-        (header) => header.name.toLowerCase() === "content-type"
+        (header) => header.name.toLowerCase() === "content-type",
       )?.value || "";
 
     const isImageByContentType = contentType.startsWith("image/");
     const hasImageExtension = /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(
-      details.url
+      details.url,
     );
 
     if (
@@ -121,7 +121,7 @@ chrome.webRequest.onCompleted.addListener(
         "Content-Type:",
         contentType,
         "Tab ID:",
-        details.tabId
+        details.tabId,
       );
       fetchAndStoreImage(details.url, details.tabId);
     }
@@ -130,11 +130,11 @@ chrome.webRequest.onCompleted.addListener(
     urls: ["<all_urls>"],
     types: ["image"],
   },
-  ["responseHeaders"]
+  ["responseHeaders"],
 );
 
 // Listen for messages from popup/side panel and content scripts
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   console.log("Background received message:", message.type);
 
   // --- HANDLERS FOR DATA MODIFICATION (KEPT) ---
@@ -176,12 +176,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ type: "IMAGE_CHECKED", success: true });
     return true; // Keep async response
   }
+
+  return false; // No async response
 });
 
 // Clear all captured images on browser startup
 chrome.runtime.onStartup.addListener(() => {
   console.log(
-    "Browser started up, clearing all captured images from IndexedDB"
+    "Browser started up, clearing all captured images from IndexedDB",
   );
   clearAllImages()
     .then(async () => {
@@ -202,7 +204,7 @@ loadAllImages()
     console.log(
       "Loaded",
       images.length,
-      "previously captured images from IndexedDB"
+      "previously captured images from IndexedDB",
     );
     // --- NEW: Set the initial badge count when the background script loads ---
     await updateBadge();

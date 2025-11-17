@@ -4,7 +4,7 @@
 export async function generateThumbnailFromBlob(
   blob: Blob,
   maxWidth = 50,
-  maxHeight = 50
+  maxHeight = 50,
 ): Promise<string> {
   const imageBitmap = await createImageBitmap(blob);
 

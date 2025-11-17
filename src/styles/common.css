@@ -19,7 +19,7 @@ main {
   min-width: 320px;
   max-width: 500px;
   background-color: white;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
 h3 {
@@ -70,7 +70,9 @@ h3 {
 }
 
 .controls button:nth-child(1):hover {
-  box-shadow: 0 2px 5px rgba(155, 89, 182, 0.3), 0 4px 8px rgba(155, 89, 182, 0.4);
+  box-shadow:
+    0 2px 5px rgba(155, 89, 182, 0.3),
+    0 4px 8px rgba(155, 89, 182, 0.4);
 }
 
 .controls button:nth-child(2) {
@@ -78,7 +80,9 @@ h3 {
 }
 
 .controls button:nth-child(2):hover {
-  box-shadow: 0 2px 5px rgba(231, 76, 60, 0.3), 0 4px 8px rgba(231, 76, 60, 0.4);
+  box-shadow:
+    0 2px 5px rgba(231, 76, 60, 0.3),
+    0 4px 8px rgba(231, 76, 60, 0.4);
 }
 
 .controls button:nth-child(3) {
@@ -86,12 +90,16 @@ h3 {
 }
 
 .controls button:nth-child(3):hover {
-  box-shadow: 0 2px 5px rgba(46, 204, 113, 0.3), 0 4px 8px rgba(46, 204, 113, 0.4);
+  box-shadow:
+    0 2px 5px rgba(46, 204, 113, 0.3),
+    0 4px 8px rgba(46, 204, 113, 0.4);
 }
 
 .controls button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3), 0 4px 8px rgba(52, 152, 219, 0.4);
+  box-shadow:
+    0 2px 5px rgba(52, 152, 219, 0.3),
+    0 4px 8px rgba(52, 152, 219, 0.4);
 }
 
 .controls button:disabled {
@@ -138,14 +146,16 @@ h3 {
   background: white;
   border-radius: 6px;
   padding: 0.4rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   margin-bottom: 0.2rem;
   border: 1px solid #eee;
 }
 
 .image-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* Popup-specific image item layout */
@@ -409,6 +419,10 @@ h3 {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
