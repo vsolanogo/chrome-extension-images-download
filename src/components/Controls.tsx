@@ -28,9 +28,7 @@ export const Controls: React.FC<ControlsProps> = ({
   className = "",
 }) => {
   const handleDownloadAll = () => {
-    onDownloadAll((_) => {
-      // Progress will be handled by parent component state
-    });
+    onDownloadAll();
   };
 
   return (

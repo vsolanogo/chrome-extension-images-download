@@ -6,7 +6,6 @@ import { ImageList } from "../components/ImageList";
 import { Controls } from "../components/Controls";
 import { useCapturedImages } from "../hooks/useCapturedImages";
 import { useDownload } from "../hooks/useDownload";
-import { loadAllImages } from "../utils/indexedDBUtils";
 
 interface DownloadProgress {
   isDownloading: boolean;
@@ -35,14 +34,13 @@ export const Popup = () => {
     onProgress?: (progress: DownloadProgress) => void,
   ) => {
     try {
-      // Load images directly from IndexedDB
-      const allImages = await loadAllImages();
-      await downloadAll(allImages, (progress) => {
+      // Call the download function with placeholder array - background will load images from IndexedDB
+      await downloadAll([], (progress) => {
         setZipProgress(progress);
         onProgress?.(progress);
       });
     } catch (error) {
-      console.error("Error downloading all images:", error);
+      console.error("Error starting ZIP download:", error);
     }
   };
 

@@ -2,6 +2,7 @@
 
 console.log("Image Capture Extension - Background loaded");
 
+import JSZip from "jszip";
 import { generateThumbnailFromBlob } from "../utils/generateThumbnailFromBlob";
 import {
   saveImage,
@@ -12,6 +13,10 @@ import {
   loadImageByUrl,
   countImages,
 } from "../utils/indexedDBUtils";
+import { createZipFromCapturedImages } from "../utils/zipUtils";
+
+// Add a global flag to track if a ZIP operation is currently running
+let isZipOperationRunning = false;
 
 // --- NEW: Function to update the badge text ---
 /**
@@ -177,8 +182,141 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
     return true; // Keep async response
   }
 
+  // Handle ZIP download request from popup
+  if (message.type === "ZIP_AND_DOWNLOAD_ALL_IMAGES") {
+    if (isZipOperationRunning) {
+      console.log("ZIP operation already in progress, ignoring request");
+      sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: false, error: "Zip operation already in progress" });
+      return false;
+    }
+
+    // Start the ZIP process in the background
+    isZipOperationRunning = true;
+    handleZipDownload()
+      .then(() => {
+        console.log("ZIP download completed");
+        isZipOperationRunning = false;
+        sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: true });
+      })
+      .catch((error) => {
+        console.error("Error during ZIP download:", error);
+        isZipOperationRunning = false;
+        sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: false, error: error.message });
+      });
+    return true; // Keep async response
+  }
+
   return false; // No async response
 });
+
+// Function to handle ZIP download in the background
+async function handleZipDownload() {
+  try {
+    console.log("Starting ZIP download in background...");
+
+    // Load all images from IndexedDB
+    const allImages = await loadAllImages();
+    console.log(`Loaded ${allImages.length} images for ZIP download`);
+
+    if (allImages.length === 0) {
+      console.log("No images to download");
+      return;
+    }
+
+    // Create ZIP files from images with progress tracking
+    const zipBlobs = await createZipFromCapturedImages(
+      JSZip,
+      allImages,
+      (progress: number, _message: string) => {
+        // Update badge with progress percentage
+        chrome.action.setBadgeText({ text: `${progress}%` });
+        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for progress
+      }
+    );
+
+    // Restore the image count on the badge after completion
+    await updateBadge();
+
+    console.log(`Created ${zipBlobs.length} ZIP files`);
+
+    // Create a function to convert Blob to Data URL
+    const blobToDataURL = (blob: Blob): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to convert Blob to Data URL'));
+        reader.readAsDataURL(blob);
+      });
+    };
+
+    // Download each ZIP blob using the chrome.downloads API
+    for (let i = 0; i < zipBlobs.length; i++) {
+      const blob = zipBlobs[i];
+      const datePart = new Date().toISOString().slice(0, 10);
+      const fileName =
+        zipBlobs.length > 1
+          ? `captured-images-${datePart}-part-${i + 1}.zip`
+          : `captured-images-${datePart}.zip`;
+
+      // Convert blob to data URL for download (using service worker compatible approach)
+      const dataUrl = await blobToDataURL(blob!); // Use ! since we know it's not undefined here
+
+      // Use chrome.downloads API to download the file
+      await new Promise<void>((resolve, reject) => {
+        chrome.downloads.download({
+          url: dataUrl,
+          filename: fileName,
+          saveAs: false
+        }, (downloadId) => {
+          if (chrome.runtime.lastError) {
+            console.error("Download error:", chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            console.log(`Download started with ID: ${downloadId}`);
+            // Listen for download completion
+            chrome.downloads.onChanged.addListener(function listener(delta) {
+              if (delta.id === downloadId && delta.state && delta.state.current === "complete") {
+                chrome.downloads.onChanged.removeListener(listener);
+                // Note: No need to revoke Data URLs (unlike Object URLs)
+                resolve();
+              } else if (delta.id === downloadId && delta.state && delta.state.current === "interrupted") {
+                chrome.downloads.onChanged.removeListener(listener);
+                reject(new Error("Download was interrupted"));
+              }
+            });
+          }
+        });
+      });
+    }
+
+    console.log("All ZIP files downloaded successfully");
+
+    // Send completion message
+    chrome.runtime.sendMessage({
+      type: "ZIP_DOWNLOAD_COMPLETE",
+      success: true,
+      message: "All ZIP files downloaded successfully"
+    }).catch(() => {
+      // Ignore errors if no receivers are open
+    });
+  } catch (error: any) {
+    console.error("Error in handleZipDownload:", error);
+
+    // Send error message
+    chrome.runtime.sendMessage({
+      type: "ZIP_DOWNLOAD_ERROR",
+      success: false,
+      error: error.message || "An unknown error occurred"
+    }).catch(() => {
+      // Ignore errors if no receivers are open
+    });
+
+    throw error;
+  } finally {
+    // Make sure to reset the flag even if an error occurs
+    isZipOperationRunning = false;
+  }
+}
 
 // Clear all captured images on browser startup
 chrome.runtime.onStartup.addListener(() => {
@@ -195,6 +333,61 @@ chrome.runtime.onStartup.addListener(() => {
     .catch((error) => {
       console.error("Error clearing images on startup:", error);
     });
+});
+
+// Set up context menu when extension is installed
+chrome.runtime.onInstalled.addListener(() => {
+  // Remove existing context menu item to avoid duplicates
+  chrome.contextMenus.removeAll(() => {
+    // Create a context menu item for clearing all images
+    chrome.contextMenus.create({
+      id: "clearAllCapturedImages",
+      title: "Clear All Captured Images",
+      contexts: ["action"], // Shows in the extension's action button context menu
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error("Error creating context menu:", chrome.runtime.lastError);
+      } else {
+        console.log("Context menu created successfully");
+      }
+    });
+  });
+});
+
+// Handle context menu clicks
+chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
+  if (info.menuItemId === "clearAllCapturedImages") {
+    console.log("Context menu: Clear all captured images selected");
+
+    try {
+      // Clear all images from IndexedDB
+      await clearAllImages();
+      console.log("All captured images cleared from IndexedDB");
+
+      // Update the badge to reflect the change
+      await updateBadge();
+
+      // Send message to any open views that images were cleared (for UI updates)
+      chrome.runtime.sendMessage({
+        type: "IMAGES_CLEARED",
+        success: true,
+      }).catch((error) => {
+        // It's okay if no receivers are open
+        console.log("No receivers for IMAGES_CLEARED message:", error);
+      });
+    } catch (error) {
+      console.error("Error clearing all images:", error);
+
+      // Send error message
+      chrome.runtime.sendMessage({
+        type: "IMAGES_CLEARED",
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error"
+      }).catch((error) => {
+        console.log("No receivers for IMAGES_CLEARED error message:", error);
+      });
+    }
+  }
 });
 
 // Log startup message after everything is set up

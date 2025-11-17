@@ -4,7 +4,7 @@ import packageData from "../package.json";
 // const isDev = process.env['NODE_ENV'] == 'development';
 
 export default defineManifest({
-  name: packageData.name,
+  name: packageData.displayName,
   description: packageData.description,
   version: packageData.version,
   manifest_version: 3,
@@ -42,6 +42,6 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ["sidePanel", "activeTab", "tabs", "webRequest", "downloads"],
+  permissions: ["sidePanel", "activeTab", "tabs", "webRequest", "downloads", "contextMenus"],
   host_permissions: ["<all_urls>"],
 });
