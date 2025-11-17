@@ -1,6 +1,6 @@
 # Image Capture Extension
 
-![Image Capture Extension](public/img/logo-128.png)
+![Image Capture Extension](src/assets/logo.png)
 
 A Chrome extension that automatically captures images from web pages as they are loaded and stores them in Chrome storage for later access. The extension provides a convenient way to collect and manage images from your browsing sessions.
 
