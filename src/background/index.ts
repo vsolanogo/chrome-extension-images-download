@@ -14,6 +14,11 @@ import {
   countImages,
 } from "../utils/indexedDBUtils";
 import { createZipFromCapturedImages } from "../utils/zipUtils";
+import {
+  BADGE_COLORS,
+  MESSAGE_TYPES,
+  CONTEXT_MENU_IDS,
+} from "../constants";
 
 // Add a global flag to track if a ZIP operation is currently running
 let isZipOperationRunning = false;
@@ -258,7 +263,7 @@ async function handleZipDownload() {
       allImages,
       (progress: number, _message: string) => {
         chrome.action.setBadgeText({ text: `${progress}%` });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for progress
+        chrome.action.setBadgeBackgroundColor({ color: BADGE_COLORS.PROGRESS });
       },
     );
 
@@ -394,19 +399,19 @@ chrome.webRequest.onCompleted.addListener(
 // Listen for messages from popup/side panel and content scripts
 chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   switch (message.type) {
-    case "CLEAR_CAPTURED_IMAGES":
+    case MESSAGE_TYPES.CLEAR_CAPTURED_IMAGES:
       handleClearCapturedImages(sendResponse);
       return true; // Keep async response
 
-    case "DELETE_IMAGE":
+    case MESSAGE_TYPES.DELETE_IMAGE:
       handleDeleteImage(message, sendResponse);
       return true; // Keep async response
 
-    case "CHECK_AND_CAPTURE_IMAGE":
+    case MESSAGE_TYPES.CHECK_AND_CAPTURE_IMAGE:
       handleCheckAndCaptureImage(message, sendResponse);
       return true; // Keep async response
 
-    case "ZIP_AND_DOWNLOAD_ALL_IMAGES":
+    case MESSAGE_TYPES.ZIP_AND_DOWNLOAD_ALL_IMAGES:
       handleZipAndDownloadAllImages(sendResponse);
       return true; // Keep async response
 
@@ -431,28 +436,28 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     // Create a context menu item for clearing all images
     chrome.contextMenus.create({
-      id: "clearAllCapturedImages",
+      id: CONTEXT_MENU_IDS.CLEAR_ALL_CAPTURED_IMAGES,
       title: "Clear All Captured Images",
-      contexts: ["action"],
+      contexts: ["action"] as const,
     });
 
     chrome.contextMenus.create({
-      id: "downloadAllAsZip",
+      id: CONTEXT_MENU_IDS.DOWNLOAD_ALL_AS_ZIP,
       title: "Download All Images as ZIP",
-      contexts: ["action"],
+      contexts: ["action"] as const,
     });
   });
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
-  if (info.menuItemId === "clearAllCapturedImages") {
+  if (info.menuItemId === CONTEXT_MENU_IDS.CLEAR_ALL_CAPTURED_IMAGES) {
     try {
       await clearAllImages();
       await updateBadge();
       chrome.runtime
         .sendMessage({
-          type: "IMAGES_CLEARED",
+          type: MESSAGE_TYPES.IMAGES_CLEARED,
           success: true,
         })
         .catch((error) => {
@@ -465,7 +470,7 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
       // Send error message
       chrome.runtime
         .sendMessage({
-          type: "IMAGES_CLEARED",
+          type: MESSAGE_TYPES.IMAGES_CLEARED,
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
         })
@@ -473,7 +478,7 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
           console.log("No receivers for IMAGES_CLEARED error message:", error);
         });
     }
-  } else if (info.menuItemId === "downloadAllAsZip") {
+  } else if (info.menuItemId === CONTEXT_MENU_IDS.DOWNLOAD_ALL_AS_ZIP) {
     // Check if ZIP operation is already running
     if (isZipOperationRunning) {
       return;
@@ -489,7 +494,7 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
 
       // Update badge to show completion temporarily
       chrome.action.setBadgeText({ text: "OK" });
-      chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for success
+      chrome.action.setBadgeBackgroundColor({ color: BADGE_COLORS.PROGRESS });
 
       // Restore the image count on the badge after a short delay
       setTimeout(async () => {
@@ -501,7 +506,7 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
 
       // Update badge to show error temporarily
       chrome.action.setBadgeText({ text: "ERR" });
-      chrome.action.setBadgeBackgroundColor({ color: "#f44336" }); // Red for error
+      chrome.action.setBadgeBackgroundColor({ color: BADGE_COLORS.ERROR });
 
       // Restore the image count on the badge after a short delay
       setTimeout(async () => {

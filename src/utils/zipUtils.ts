@@ -1,7 +1,5 @@
 import { CapturedImage } from "./indexedDBUtils";
-
-/* ---------- Constants ---------- */
-const MAX_IMAGES_PER_ZIP = 10000; // Set to high number to effectively disable chunking
+import { ZIP_CONFIG, EXTENSION_CONFIG, FILE_CONFIG, DEFAULT_CONFIG } from "../constants";
 
 /* ---------- Helpers (simplified for service worker compatibility) ---------- */
 
@@ -13,7 +11,7 @@ const chunkArray = <T>(arr: T[], size: number): T[][] => {
 
 // Simplified filename creation to avoid complex logic that might cause type issues
 const createFilename = (index: number, extension: string): string => {
-  return `image-${index + 1}.${extension || "png"}`;
+  return `${DEFAULT_CONFIG.FILENAME_BASE}-${index + 1}.${extension || FILE_CONFIG.DEFAULT_EXTENSION}`;
 };
 
 export const createZipFromCapturedImages = async (
@@ -29,7 +27,7 @@ export const createZipFromCapturedImages = async (
   }
 
   // Split into chunks if needed
-  const chunks = chunkArray(images, MAX_IMAGES_PER_ZIP);
+  const chunks = chunkArray(images, ZIP_CONFIG.MAX_IMAGES_PER_ZIP);
   const zipBlobs: Blob[] = [];
 
   // Process each chunk separately to create individual ZIP files
@@ -78,17 +76,17 @@ export const createZipFromCapturedImages = async (
       else if (contentType.includes("svg")) ext = "svg";
 
       // If not found in content type, try from URL
-      if (ext === "png") {
+      if (ext === FILE_CONFIG.DEFAULT_EXTENSION) {
         const urlExt = image.url.split(".").pop()?.toLowerCase();
         if (
           urlExt &&
-          ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(urlExt)
+          EXTENSION_CONFIG.SUPPORTED_IMAGE_EXTENSIONS.includes(urlExt as any)
         ) {
           ext = urlExt === "jpeg" ? "jpg" : urlExt;
         }
       }
 
-      const imageIndex: number = i * MAX_IMAGES_PER_ZIP + j;
+      const imageIndex: number = i * ZIP_CONFIG.MAX_IMAGES_PER_ZIP + j;
       const extension: string = ext;
       const filename = createFilename(imageIndex, extension);
 
@@ -113,8 +111,8 @@ export const createZipFromCapturedImages = async (
     const content = (await chunkZip.generateAsync(
       {
         type: "blob",
-        compression: "STORE",
-        compressionOptions: { level: 0 },
+        compression: ZIP_CONFIG.COMPRESSION,
+        compressionOptions: { level: ZIP_CONFIG.COMPRESSION_LEVEL },
       },
       (metadata) => {
         // Report real progress from JSZip, scaled to overall operation
