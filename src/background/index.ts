@@ -336,9 +336,6 @@ async function handleZipDownload() {
       });
 
     throw error;
-  } finally {
-    // Make sure to reset the flag even if an error occurs
-    isZipOperationRunning = false;
   }
 }
 
@@ -361,7 +358,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 // Set up context menu when extension is installed
 chrome.runtime.onInstalled.addListener(() => {
-  // Remove existing context menu item to avoid duplicates
+  // Remove existing context menu items to avoid duplicates
   chrome.contextMenus.removeAll(() => {
     // Create a context menu item for clearing all images
     chrome.contextMenus.create(
@@ -373,11 +370,30 @@ chrome.runtime.onInstalled.addListener(() => {
       () => {
         if (chrome.runtime.lastError) {
           console.error(
-            "Error creating context menu:",
+            "Error creating clear all context menu:",
             chrome.runtime.lastError,
           );
         } else {
-          console.log("Context menu created successfully");
+          console.log("Clear all context menu created successfully");
+        }
+      },
+    );
+
+    // Create a context menu item for downloading all images as ZIP
+    chrome.contextMenus.create(
+      {
+        id: "downloadAllAsZip",
+        title: "Download All Images as ZIP",
+        contexts: ["action"], // Shows in the extension's action button context menu
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error creating download ZIP context menu:",
+            chrome.runtime.lastError,
+          );
+        } else {
+          console.log("Download ZIP context menu created successfully");
         }
       },
     );
@@ -421,6 +437,45 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
           console.log("No receivers for IMAGES_CLEARED error message:", error);
         });
     }
+  } else if (info.menuItemId === "downloadAllAsZip") {
+    console.log("Context menu: Download all images as ZIP selected");
+
+    // Check if ZIP operation is already running
+    if (isZipOperationRunning) {
+      console.log("ZIP operation already in progress, ignoring request");
+      return;
+    }
+
+    // Reuse the existing handleZipDownload functionality
+    // Start the ZIP download process in the background
+    isZipOperationRunning = true;
+    handleZipDownload()
+      .then(() => {
+        console.log("ZIP download completed from context menu");
+        isZipOperationRunning = false;
+
+        // Update badge to show completion temporarily
+        chrome.action.setBadgeText({ text: "OK" });
+        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for success
+
+        // Restore the image count on the badge after a short delay
+        setTimeout(async () => {
+          await updateBadge(); // This will set the badge back to the image count
+        }, 2000);
+      })
+      .catch((error) => {
+        console.error("Error in context menu ZIP download:", error);
+        isZipOperationRunning = false;
+
+        // Update badge to show error temporarily
+        chrome.action.setBadgeText({ text: "ERR" });
+        chrome.action.setBadgeBackgroundColor({ color: "#f44336" }); // Red for error
+
+        // Restore the image count on the badge after a short delay
+        setTimeout(async () => {
+          await updateBadge(); // This will set the badge back to the image count
+        }, 2000);
+      });
   }
 });
 
