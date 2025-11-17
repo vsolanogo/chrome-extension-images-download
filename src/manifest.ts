@@ -42,6 +42,13 @@ export default defineManifest({
       matches: [],
     },
   ],
-  permissions: ["sidePanel", "activeTab", "tabs", "webRequest", "downloads", "contextMenus"],
+  permissions: [
+    "sidePanel",
+    "activeTab",
+    "tabs",
+    "webRequest",
+    "downloads",
+    "contextMenus",
+  ],
   host_permissions: ["<all_urls>"],
 });

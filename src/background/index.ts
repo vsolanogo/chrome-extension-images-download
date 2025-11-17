@@ -186,7 +186,11 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   if (message.type === "ZIP_AND_DOWNLOAD_ALL_IMAGES") {
     if (isZipOperationRunning) {
       console.log("ZIP operation already in progress, ignoring request");
-      sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: false, error: "Zip operation already in progress" });
+      sendResponse({
+        type: "ZIP_DOWNLOAD_COMPLETE",
+        success: false,
+        error: "Zip operation already in progress",
+      });
       return false;
     }
 
@@ -201,7 +205,11 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
       .catch((error) => {
         console.error("Error during ZIP download:", error);
         isZipOperationRunning = false;
-        sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: false, error: error.message });
+        sendResponse({
+          type: "ZIP_DOWNLOAD_COMPLETE",
+          success: false,
+          error: error.message,
+        });
       });
     return true; // Keep async response
   }
@@ -231,7 +239,7 @@ async function handleZipDownload() {
         // Update badge with progress percentage
         chrome.action.setBadgeText({ text: `${progress}%` });
         chrome.action.setBadgeBackgroundColor({ color: "#4CAF50" }); // Green for progress
-      }
+      },
     );
 
     // Restore the image count on the badge after completion
@@ -244,7 +252,8 @@ async function handleZipDownload() {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Failed to convert Blob to Data URL'));
+        reader.onerror = () =>
+          reject(new Error("Failed to convert Blob to Data URL"));
         reader.readAsDataURL(blob);
       });
     };
@@ -263,53 +272,68 @@ async function handleZipDownload() {
 
       // Use chrome.downloads API to download the file
       await new Promise<void>((resolve, reject) => {
-        chrome.downloads.download({
-          url: dataUrl,
-          filename: fileName,
-          saveAs: false
-        }, (downloadId) => {
-          if (chrome.runtime.lastError) {
-            console.error("Download error:", chrome.runtime.lastError);
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            console.log(`Download started with ID: ${downloadId}`);
-            // Listen for download completion
-            chrome.downloads.onChanged.addListener(function listener(delta) {
-              if (delta.id === downloadId && delta.state && delta.state.current === "complete") {
-                chrome.downloads.onChanged.removeListener(listener);
-                // Note: No need to revoke Data URLs (unlike Object URLs)
-                resolve();
-              } else if (delta.id === downloadId && delta.state && delta.state.current === "interrupted") {
-                chrome.downloads.onChanged.removeListener(listener);
-                reject(new Error("Download was interrupted"));
-              }
-            });
-          }
-        });
+        chrome.downloads.download(
+          {
+            url: dataUrl,
+            filename: fileName,
+            saveAs: false,
+          },
+          (downloadId) => {
+            if (chrome.runtime.lastError) {
+              console.error("Download error:", chrome.runtime.lastError);
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              console.log(`Download started with ID: ${downloadId}`);
+              // Listen for download completion
+              chrome.downloads.onChanged.addListener(function listener(delta) {
+                if (
+                  delta.id === downloadId &&
+                  delta.state &&
+                  delta.state.current === "complete"
+                ) {
+                  chrome.downloads.onChanged.removeListener(listener);
+                  // Note: No need to revoke Data URLs (unlike Object URLs)
+                  resolve();
+                } else if (
+                  delta.id === downloadId &&
+                  delta.state &&
+                  delta.state.current === "interrupted"
+                ) {
+                  chrome.downloads.onChanged.removeListener(listener);
+                  reject(new Error("Download was interrupted"));
+                }
+              });
+            }
+          },
+        );
       });
     }
 
     console.log("All ZIP files downloaded successfully");
 
     // Send completion message
-    chrome.runtime.sendMessage({
-      type: "ZIP_DOWNLOAD_COMPLETE",
-      success: true,
-      message: "All ZIP files downloaded successfully"
-    }).catch(() => {
-      // Ignore errors if no receivers are open
-    });
+    chrome.runtime
+      .sendMessage({
+        type: "ZIP_DOWNLOAD_COMPLETE",
+        success: true,
+        message: "All ZIP files downloaded successfully",
+      })
+      .catch(() => {
+        // Ignore errors if no receivers are open
+      });
   } catch (error: any) {
     console.error("Error in handleZipDownload:", error);
 
     // Send error message
-    chrome.runtime.sendMessage({
-      type: "ZIP_DOWNLOAD_ERROR",
-      success: false,
-      error: error.message || "An unknown error occurred"
-    }).catch(() => {
-      // Ignore errors if no receivers are open
-    });
+    chrome.runtime
+      .sendMessage({
+        type: "ZIP_DOWNLOAD_ERROR",
+        success: false,
+        error: error.message || "An unknown error occurred",
+      })
+      .catch(() => {
+        // Ignore errors if no receivers are open
+      });
 
     throw error;
   } finally {
@@ -340,17 +364,23 @@ chrome.runtime.onInstalled.addListener(() => {
   // Remove existing context menu item to avoid duplicates
   chrome.contextMenus.removeAll(() => {
     // Create a context menu item for clearing all images
-    chrome.contextMenus.create({
-      id: "clearAllCapturedImages",
-      title: "Clear All Captured Images",
-      contexts: ["action"], // Shows in the extension's action button context menu
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error("Error creating context menu:", chrome.runtime.lastError);
-      } else {
-        console.log("Context menu created successfully");
-      }
-    });
+    chrome.contextMenus.create(
+      {
+        id: "clearAllCapturedImages",
+        title: "Clear All Captured Images",
+        contexts: ["action"], // Shows in the extension's action button context menu
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            "Error creating context menu:",
+            chrome.runtime.lastError,
+          );
+        } else {
+          console.log("Context menu created successfully");
+        }
+      },
+    );
   });
 });
 
@@ -368,24 +398,28 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
       await updateBadge();
 
       // Send message to any open views that images were cleared (for UI updates)
-      chrome.runtime.sendMessage({
-        type: "IMAGES_CLEARED",
-        success: true,
-      }).catch((error) => {
-        // It's okay if no receivers are open
-        console.log("No receivers for IMAGES_CLEARED message:", error);
-      });
+      chrome.runtime
+        .sendMessage({
+          type: "IMAGES_CLEARED",
+          success: true,
+        })
+        .catch((error) => {
+          // It's okay if no receivers are open
+          console.log("No receivers for IMAGES_CLEARED message:", error);
+        });
     } catch (error) {
       console.error("Error clearing all images:", error);
 
       // Send error message
-      chrome.runtime.sendMessage({
-        type: "IMAGES_CLEARED",
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error"
-      }).catch((error) => {
-        console.log("No receivers for IMAGES_CLEARED error message:", error);
-      });
+      chrome.runtime
+        .sendMessage({
+          type: "IMAGES_CLEARED",
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        })
+        .catch((error) => {
+          console.log("No receivers for IMAGES_CLEARED error message:", error);
+        });
     }
   }
 });

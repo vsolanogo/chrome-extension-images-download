@@ -23,13 +23,17 @@ interface CapturedImage {
   fileSize?: number;
 }
 
-
 export const useDownload = () => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [onBackgroundProgressUpdate, setOnBackgroundProgressUpdate] =
+    useState<(progress: DownloadProgress) => void>();
 
   // Listen for background ZIP completion updates
   useEffect(() => {
-    const handleBackgroundMessage = (message: any, _: chrome.runtime.MessageSender) => {
+    const handleBackgroundMessage = (
+      message: any,
+      _: chrome.runtime.MessageSender,
+    ) => {
       if (message.type === "ZIP_DOWNLOAD_COMPLETE") {
         if (message.success) {
           onBackgroundProgressUpdate?.({
@@ -71,9 +75,10 @@ export const useDownload = () => {
   }, []);
 
   // Store the progress callback to access it in the useEffect
-  const [onBackgroundProgressUpdate, setOnBackgroundProgressUpdate] = useState<(progress: DownloadProgress) => void>();
 
-  const setProgressCallback = (callback: (progress: DownloadProgress) => void) => {
+  const setProgressCallback = (
+    callback: (progress: DownloadProgress) => void,
+  ) => {
     setOnBackgroundProgressUpdate(() => callback);
   };
 
@@ -96,7 +101,7 @@ export const useDownload = () => {
     try {
       // Send message to background script to start ZIP process
       const response = await chrome.runtime.sendMessage({
-        type: "ZIP_AND_DOWNLOAD_ALL_IMAGES"
+        type: "ZIP_AND_DOWNLOAD_ALL_IMAGES",
       });
 
       if (!response) {
@@ -132,25 +137,26 @@ export const useDownload = () => {
     // since it's a quick operation
     if (image.fullData) {
       // Get the image type from the blob
-      const imageType = image.fullData.type || 'image/png';
+      const imageType = image.fullData.type || "image/png";
 
       // Get extension from URL or use from image type
-      let extension = 'png'; // default
-      if (imageType.includes('jpeg') || imageType.includes('jpg')) extension = 'jpg';
-      else if (imageType.includes('png')) extension = 'png';
-      else if (imageType.includes('gif')) extension = 'gif';
-      else if (imageType.includes('webp')) extension = 'webp';
-      else if (imageType.includes('bmp')) extension = 'bmp';
+      let extension = "png"; // default
+      if (imageType.includes("jpeg") || imageType.includes("jpg"))
+        extension = "jpg";
+      else if (imageType.includes("png")) extension = "png";
+      else if (imageType.includes("gif")) extension = "gif";
+      else if (imageType.includes("webp")) extension = "webp";
+      else if (imageType.includes("bmp")) extension = "bmp";
 
       // Create a filename based on the URL
-      const urlParts = image.url.split('/');
+      const urlParts = image.url.split("/");
       const fileName = urlParts[urlParts.length - 1] || `image.${extension}`;
 
       // Create a temporary URL for the blob
       const imageUrl = URL.createObjectURL(image.fullData);
 
       // Create a temporary anchor element and trigger download
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = imageUrl;
       a.download = fileName;
       document.body.appendChild(a);
@@ -164,14 +170,14 @@ export const useDownload = () => {
       // This would require loading from IndexedDB
       const imageData = await loadImageBlob(image.url);
       if (!imageData) {
-        console.error('Could not retrieve image data for download:', image.url);
+        console.error("Could not retrieve image data for download:", image.url);
         return;
       }
 
-      const urlParts = image.url.split('/');
-      const fileName = urlParts[urlParts.length - 1] || 'image.png';
+      const urlParts = image.url.split("/");
+      const fileName = urlParts[urlParts.length - 1] || "image.png";
 
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = imageData;
       a.download = fileName;
       document.body.appendChild(a);

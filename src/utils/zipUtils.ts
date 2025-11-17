@@ -13,7 +13,7 @@ const chunkArray = <T>(arr: T[], size: number): T[][] => {
 
 // Simplified filename creation to avoid complex logic that might cause type issues
 const createFilename = (index: number, extension: string): string => {
-  return `image-${index + 1}.${extension || 'png'}`;
+  return `image-${index + 1}.${extension || "png"}`;
 };
 
 export const createZipFromCapturedImages = async (
@@ -46,36 +46,49 @@ export const createZipFromCapturedImages = async (
       if (!image || !image.fullData) continue;
 
       // Progress update for each image processed
-      if (progressCallback && j % Math.max(1, Math.floor(chunk.length / 10)) === 0) { // Update every 10% or so of this chunk
+      if (
+        progressCallback &&
+        j % Math.max(1, Math.floor(chunk.length / 10)) === 0
+      ) {
+        // Update every 10% or so of this chunk
         const chunkProgress = Math.round((j / chunk.length) * 30); // Max 30% for processing
-        const overallProgress = Math.round((i * 100 / chunks.length) + (chunkProgress / chunks.length));
-        progressCallback(overallProgress, `Processing image ${j + 1} of ${chunk.length} in part ${i + 1}...`);
+        const overallProgress = Math.round(
+          (i * 100) / chunks.length + chunkProgress / chunks.length,
+        );
+        progressCallback(
+          overallProgress,
+          `Processing image ${j + 1} of ${chunk.length} in part ${i + 1}...`,
+        );
       }
 
       // Convert blob for ZIP - using service worker safe approach
       const arrayBuffer = await image.fullData.arrayBuffer();
 
       // Add the image binary data directly to the zip file
-      const contentType = (image.fullData as Blob).type || 'image/png';
+      const contentType = (image.fullData as Blob).type || "image/png";
 
       // Extract extension from content type or URL
-      let ext = 'png'; // default
-      if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = 'jpg';
-      else if (contentType.includes('png')) ext = 'png';
-      else if (contentType.includes('gif')) ext = 'gif';
-      else if (contentType.includes('webp')) ext = 'webp';
-      else if (contentType.includes('bmp')) ext = 'bmp';
-      else if (contentType.includes('svg')) ext = 'svg';
-      
+      let ext = "png"; // default
+      if (contentType.includes("jpeg") || contentType.includes("jpg"))
+        ext = "jpg";
+      else if (contentType.includes("png")) ext = "png";
+      else if (contentType.includes("gif")) ext = "gif";
+      else if (contentType.includes("webp")) ext = "webp";
+      else if (contentType.includes("bmp")) ext = "bmp";
+      else if (contentType.includes("svg")) ext = "svg";
+
       // If not found in content type, try from URL
-      if (ext === 'png') {
-        const urlExt = image.url.split('.').pop()?.toLowerCase();
-        if (urlExt && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(urlExt)) {
-          ext = urlExt === 'jpeg' ? 'jpg' : urlExt;
+      if (ext === "png") {
+        const urlExt = image.url.split(".").pop()?.toLowerCase();
+        if (
+          urlExt &&
+          ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(urlExt)
+        ) {
+          ext = urlExt === "jpeg" ? "jpg" : urlExt;
         }
       }
 
-      const imageIndex: number = (i * MAX_IMAGES_PER_ZIP) + j;
+      const imageIndex: number = i * MAX_IMAGES_PER_ZIP + j;
       const extension: string = ext;
       const filename = createFilename(imageIndex, extension);
 
@@ -84,7 +97,10 @@ export const createZipFromCapturedImages = async (
     }
 
     if (progressCallback) {
-      progressCallback(Math.round((i + 0.5) * 100 / chunks.length), `Packaging part ${i + 1}...`);
+      progressCallback(
+        Math.round(((i + 0.5) * 100) / chunks.length),
+        `Packaging part ${i + 1}...`,
+      );
     }
 
     const datePart = new Date().toISOString().slice(0, 10);
@@ -94,7 +110,7 @@ export const createZipFromCapturedImages = async (
         : `captured-images-${datePart}.zip`;
 
     // Generate ZIP with progress tracking using real JSZip progress
-    const content = await chunkZip.generateAsync(
+    const content = (await chunkZip.generateAsync(
       {
         type: "blob",
         compression: "DEFLATE",
@@ -106,11 +122,16 @@ export const createZipFromCapturedImages = async (
           // Calculate overall progress: previous chunks + current chunk progress
           const progressForThisChunk = Math.round(metadata.percent);
           // Calculate overall progress: (completed chunks / total chunks) * 100 + (current chunk progress / total chunks)
-          const overallProgress = Math.round(((i * 100) + progressForThisChunk) / chunks.length);
-          progressCallback(overallProgress, `Zipping part ${i + 1}: ${progressForThisChunk}%`);
+          const overallProgress = Math.round(
+            (i * 100 + progressForThisChunk) / chunks.length,
+          );
+          progressCallback(
+            overallProgress,
+            `Zipping part ${i + 1}: ${progressForThisChunk}%`,
+          );
         }
       },
-    ) as Blob;
+    )) as Blob;
 
     zipBlobs.push(content);
     console.log(`Created ZIP file part ${i + 1} as ${zipName}`);
