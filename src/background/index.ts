@@ -119,6 +119,12 @@ async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
     // Fetch image data
     const blob = await fetchImageData(url);
 
+    const mimeType = blob.type;
+    if (!mimeType.startsWith("image/") && mimeType !== "image/svg+xml") {
+      console.warn("Skipping non-image blob", blob);
+      return; // or return a placeholder thumbnail
+    }
+
     // Create image object
     const imageObj = await createCapturedImage(url, tabId, blob);
 
