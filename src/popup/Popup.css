@@ -8,43 +8,65 @@ main {
   max-height: 600px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: rgba(30, 30, 40, 0.8);
+  backdrop-filter: blur(10px);
+  color: white;
 }
 
 h3 {
   font-size: 1.1rem;
   padding-bottom: 0.3rem;
-  border-bottom: 2px solid #f0f4f8;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
   margin: 0.3rem auto 0.6rem;
+  color: white;
 }
 
 .controls button {
-  padding: 0.4rem 0.8rem;
+  padding: 8px 15px;
   width: 100%;
   max-width: 150px;
   margin: 0 auto;
+  font-size: 12px;
 }
 
 .image-count {
   padding: 0.25rem 0.5rem;
   border-radius: 15px;
   font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .image-list {
   max-height: calc(100vh - 180px);
   padding: 0.3rem 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.image-item {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .no-images {
   border-radius: 4px;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
   padding: 0.8rem;
   font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .footer-link {
   font-size: 0.55rem;
   padding-top: 0.3rem;
-  border-top: 1px solid #eef2f7;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
   margin: 0.5rem 0.3rem 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.footer-link:hover {
+  color: white;
 }
