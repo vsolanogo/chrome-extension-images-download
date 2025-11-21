@@ -1,7 +1,7 @@
 {
   "name": "image-capture-extension",
   "displayName": "Image Capture Extension",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "author": "",
   "description": "Captures images from web pages as they are loaded and stores them in Chrome storage for later access.",
   "type": "module",

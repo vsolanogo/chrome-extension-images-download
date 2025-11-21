@@ -1,6 +1,6 @@
 import { generateThumbnailFromBlob } from "./generateThumbnailFromBlob";
 const DB_NAME = "CapturedImagesDB" as const;
-const DB_VERSION = 2 as const;
+const DB_VERSION = 1 as const; // Simplified to version 1 since no migration needed
 const STORE_NAME = "capturedImages" as const;
 
 export interface CapturedImage {
@@ -63,25 +63,16 @@ export async function loadImageThumbnailData(
     };
   });
 }
+
 /**
- * Open (and create/upgrade) the IndexedDB database
+ * Open (and create) the IndexedDB database
  */
 export function initDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request: IDBOpenDBRequest = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = () => {
       const db = request.result;
-      // The database version upgrade logic
-      const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
-      if (
-        oldVersion !== null &&
-        oldVersion < 2 &&
-        db.objectStoreNames.contains(STORE_NAME)
-      ) {
-        // If upgrading from version 1, delete the old store and create a new one
-        db.deleteObjectStore(STORE_NAME);
-      }
 
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         // Use 'url' as the primary key instead of 'key'

@@ -19,6 +19,9 @@ import { BADGE_COLORS, MESSAGE_TYPES, CONTEXT_MENU_IDS } from "../constants";
 // Add a global flag to track if a ZIP operation is currently running
 let isZipOperationRunning = false;
 
+// Track pending downloads to prevent race conditions and duplicate requests
+const pendingDownloads = new Map<string, Promise<void>>();
+
 // --- BADGE MANAGEMENT ---
 /**
  * Updates the extension's badge with the current number of captured images.
@@ -110,35 +113,54 @@ function notifyImageCaptured(image: Partial<CapturedImage>) {
  * Main function to fetch and store image data
  */
 async function fetchAndStoreImage(url: string, tabId: number): Promise<void> {
+  // Check if we're already downloading this image
+  if (pendingDownloads.has(url)) {
+    return;
+  }
+
+  // Create a promise to track this download
+  const downloadPromise = (async () => {
+    try {
+      // Check if image is already captured
+      if (await isImageAlreadyCaptured(url)) {
+        console.log("Image already captured:", url);
+        return;
+      }
+
+      // Fetch image data
+      const blob = await fetchImageData(url);
+
+      const mimeType = blob.type;
+      if (!mimeType.startsWith("image/") && mimeType !== "image/svg+xml") {
+        console.warn("Skipping non-image blob", blob);
+        return; // or return a placeholder thumbnail
+      }
+
+      // Create image object
+      const imageObj = await createCapturedImage(url, tabId, blob);
+
+      // Store in IndexedDB
+      await saveImage(imageObj);
+
+      // Update the badge after a new image is saved
+      await updateBadge();
+
+      // Send message to any open views that a new image was captured
+      notifyImageCaptured(imageObj);
+    } catch (error) {
+      console.error("Error capturing image:", url, error);
+    }
+  })();
+
+  // Add the promise to pending downloads
+  pendingDownloads.set(url, downloadPromise);
+
   try {
-    // Check if image is already captured
-    if (await isImageAlreadyCaptured(url)) {
-      console.log("Image already captured:", url);
-      return;
-    }
-
-    // Fetch image data
-    const blob = await fetchImageData(url);
-
-    const mimeType = blob.type;
-    if (!mimeType.startsWith("image/") && mimeType !== "image/svg+xml") {
-      console.warn("Skipping non-image blob", blob);
-      return; // or return a placeholder thumbnail
-    }
-
-    // Create image object
-    const imageObj = await createCapturedImage(url, tabId, blob);
-
-    // Store in IndexedDB
-    await saveImage(imageObj);
-
-    // Update the badge after a new image is saved
-    await updateBadge();
-
-    // Send message to any open views that a new image was captured
-    notifyImageCaptured(imageObj);
-  } catch (error) {
-    console.error("Error capturing image:", url, error);
+    // Wait for the download to complete
+    await downloadPromise;
+  } finally {
+    // Clean up the pending download
+    pendingDownloads.delete(url);
   }
 }
 

@@ -82,12 +82,6 @@ export const PROGRESS_MESSAGES = {
   ERROR_OCCURRED: "Error occurred during download.",
 } as const;
 
-// Default values
-export const DEFAULT_VALUES = {
-  FILENAME_BASE: "image",
-  FILENAME_SEPARATOR: "_",
-} as const;
-
 // Default configurations
 export const DEFAULT_CONFIG = {
   FILENAME_BASE: "image",
