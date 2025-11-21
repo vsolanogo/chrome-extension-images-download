@@ -160,6 +160,34 @@ export async function loadAllImages(): Promise<CapturedImage[]> {
 }
 
 /**
+ * Load all images metadata (without fullData) from the object store.
+ */
+export async function loadAllImagesMetadata(): Promise<
+  Omit<CapturedImage, "fullData">[]
+> {
+  const db = await initDB();
+  return new Promise<Omit<CapturedImage, "fullData">[]>((resolve, reject) => {
+    const tx = db.transaction([STORE_NAME], "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
+
+    req.onsuccess = () => {
+      const allImages = (req.result as CapturedImage[]) ?? [];
+      // Map to exclude fullData to only return metadata
+      const metadataOnly = allImages.map((img) => {
+        const { fullData, ...metadata } = img;
+        return metadata;
+      });
+      resolve(metadataOnly);
+    };
+
+    req.onerror = () => {
+      reject(req.error ?? new Error("Failed to read from object store"));
+    };
+  });
+}
+
+/**
  * Delete a specific image by URL
  */
 export async function deleteImage(url: string): Promise<void> {

@@ -14,11 +14,7 @@ import {
   countImages,
 } from "../utils/indexedDBUtils";
 import { createZipFromCapturedImages } from "../utils/zipUtils";
-import {
-  BADGE_COLORS,
-  MESSAGE_TYPES,
-  CONTEXT_MENU_IDS,
-} from "../constants";
+import { BADGE_COLORS, MESSAGE_TYPES, CONTEXT_MENU_IDS } from "../constants";
 
 // Add a global flag to track if a ZIP operation is currently running
 let isZipOperationRunning = false;

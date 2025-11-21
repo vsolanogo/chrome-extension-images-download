@@ -1,5 +1,10 @@
 import { CapturedImage } from "./indexedDBUtils";
-import { ZIP_CONFIG, EXTENSION_CONFIG, FILE_CONFIG, DEFAULT_CONFIG } from "../constants";
+import {
+  ZIP_CONFIG,
+  EXTENSION_CONFIG,
+  FILE_CONFIG,
+  DEFAULT_CONFIG,
+} from "../constants";
 
 /* ---------- Helpers (simplified for service worker compatibility) ---------- */
 

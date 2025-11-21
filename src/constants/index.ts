@@ -11,13 +11,21 @@ export const ZIP_CONFIG = {
 export const BADGE_COLORS = {
   PROGRESS: "#4CAF50", // Green for progress
   DOWNLOAD: "#2196F3", // Blue for download
-  ERROR: "#f44336",    // Red for error
-  DEFAULT: "#4688F1",  // Blue for default badge
+  ERROR: "#f44336", // Red for error
+  DEFAULT: "#4688F1", // Blue for default badge
 } as const;
 
 // Extension-related constants
 export const EXTENSION_CONFIG = {
-  SUPPORTED_IMAGE_EXTENSIONS: ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"] as const,
+  SUPPORTED_IMAGE_EXTENSIONS: [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "webp",
+    "bmp",
+    "svg",
+  ] as const,
   CONTENT_TYPE_PREFIX: "data:image/",
 } as const;
 
@@ -62,11 +70,14 @@ export const INDEXEDDB_CONFIG = {
 
 // Progress status messages
 export const PROGRESS_MESSAGES = {
-  STARTING_DOWNLOAD: (count: number) => `Starting download of ${count} images...`,
+  STARTING_DOWNLOAD: (count: number) =>
+    `Starting download of ${count} images...`,
   PREPARING: "Preparing ZIP...",
-  PREPARING_IMAGE: (index: number, total: number) => `Processing image ${index + 1} of ${total}...`,
+  PREPARING_IMAGE: (index: number, total: number) =>
+    `Processing image ${index + 1} of ${total}...`,
   ZIPPING: (progress: number) => `Zipping: ${progress}%`,
-  ZIPPING_PART: (index: number, progress: number) => `Zipping part ${index + 1}: ${progress}%`,
+  ZIPPING_PART: (index: number, progress: number) =>
+    `Zipping part ${index + 1}: ${progress}%`,
   DOWNLOADED: "Downloaded...",
   COMPLETED: "Download completed!",
   ERROR_OCCURRED: "Error occurred during download.",

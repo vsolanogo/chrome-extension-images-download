@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { loadAllImages, countImages } from "../utils/indexedDBUtils";
+import { countImages, loadAllImagesMetadata } from "../utils/indexedDBUtils";
 
 interface ImageMetadata {
   url: string;
@@ -20,21 +20,7 @@ export const useCapturedImages = () => {
   const fetchImages = useCallback(async () => {
     try {
       const count = await countImages();
-      const allImages = await loadAllImages();
-
-      const imageMetadata: ImageMetadata[] = allImages.map((img) => {
-        const metadata: ImageMetadata = {
-          url: img.url,
-          tabId: img.tabId,
-          timestamp: img.timestamp,
-        };
-        if (img.thumbnailData !== undefined)
-          metadata.thumbnailData = img.thumbnailData;
-        if (img.fileSize !== undefined) metadata.fileSize = img.fileSize;
-        if (img.width !== undefined) metadata.width = img.width;
-        if (img.height !== undefined) metadata.height = img.height;
-        return metadata;
-      });
+      const imageMetadata = await loadAllImagesMetadata();
 
       return { metadata: imageMetadata, count };
     } catch (error) {
