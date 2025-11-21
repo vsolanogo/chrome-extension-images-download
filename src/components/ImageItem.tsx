@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { CapturedImage, loadImageBlob } from "../utils/indexedDBUtils";
 
 interface ImageItemProps {
@@ -17,9 +16,6 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   urlLength = 30,
   className = "",
 }) => {
-  const fullImageRef = useRef<string | null>(null);
-
-  /** Safe helpers **/
   const safeLastPart = (() => {
     try {
       const url = new URL(image.url);
@@ -36,7 +32,7 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   })();
 
   const extractFilename = (
-    originalLast: string,
+    originalLast: string
   ): { base: string; ext: string } => {
     let base = "image";
     let ext = "jpg";
@@ -54,7 +50,6 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   };
 
   const handleImageClick = async () => {
-    // Otherwise, use the default download method
     try {
       const blobUrl = await loadImageBlob(image.url);
 
@@ -68,18 +63,13 @@ export const ImageItem: React.FC<ImageItemProps> = ({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 500);
         return;
       }
     } catch (err) {
       console.error("Primary download failed", err);
     }
   };
-
-  useEffect(() => {
-    return () => {
-      if (fullImageRef.current) URL.revokeObjectURL(fullImageRef.current);
-    };
-  }, []);
 
   const displayUrl =
     image.url.length > urlLength
