@@ -1,8 +1,7 @@
 // ZIP-related constants
 export const ZIP_CONFIG = {
   MAX_IMAGES_PER_ZIP: 10000,
-  COMPRESSION: "DEFLATE" as const,
-  COMPRESSION_LEVEL: 0,
+  COMPRESSION: "STORE" as const,
   FILE_NAME_PATTERN: "captured-images-{date}-part-{index}.zip",
   DEFAULT_FILE_NAME: "captured-images-{date}.zip",
 } as const;

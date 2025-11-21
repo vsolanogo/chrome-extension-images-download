@@ -1,20 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useIsMounted } from "./useIsMounted";
+import { ImageMetadata } from "../types";
 import { countImages, loadAllImagesMetadata } from "../utils/indexedDBUtils";
-
-interface ImageMetadata {
-  url: string;
-  tabId: number;
-  timestamp: number;
-  thumbnailData?: string;
-  fileSize?: number;
-  width?: number;
-  height?: number;
-}
 
 export const useCapturedImages = () => {
   const [images, setImages] = useState<ImageMetadata[]>([]);
   const [imageCount, setImageCount] = useState(0);
-  const mountedRef = useRef(true);
+  const isMounted = useIsMounted();
 
   // Stable loader that returns the metadata and count (doesn't set state directly)
   const fetchImages = useCallback(async () => {
@@ -32,20 +24,23 @@ export const useCapturedImages = () => {
   // Safe setter that updates state only if still mounted
   const loadImagesFromIndexedDB = useCallback(async () => {
     const { metadata, count } = await fetchImages();
-    if (!mountedRef.current) return;
+    if (!isMounted.current) return;
     setImages(metadata);
     setImageCount(count);
-  }, [fetchImages]);
+  }, [fetchImages, isMounted.current]);
 
   useEffect(() => {
-    mountedRef.current = true;
+    let isMountedLocal = true;
 
-    // Defer the load so setState does not run synchronously inside the effect body.
-    // Promise.resolve().then(...) schedules the work after the current microtask,
-    // avoiding the "sync setState in effect" warning.
-    Promise.resolve().then(() => {
-      loadImagesFromIndexedDB();
-    });
+    const initializeData = async () => {
+      const { metadata, count } = await fetchImages();
+      if (isMountedLocal) {
+        setImages(metadata);
+        setImageCount(count);
+      }
+    };
+
+    initializeData();
 
     // Listener for runtime messages
     const messageListener = (
@@ -53,8 +48,7 @@ export const useCapturedImages = () => {
       _sender?: any,
       _sendResponse?: any,
     ) => {
-      if (message?.type === "IMAGE_CAPTURED") {
-        // Refresh after a capture; use the same safe loader.
+      if (message?.type === "IMAGE_CAPTURED" && isMounted.current) {
         loadImagesFromIndexedDB();
       }
     };
@@ -62,7 +56,7 @@ export const useCapturedImages = () => {
     chrome.runtime.onMessage.addListener(messageListener);
 
     return () => {
-      mountedRef.current = false;
+      isMountedLocal = false;
       chrome.runtime.onMessage.removeListener(messageListener);
     };
   }, [loadImagesFromIndexedDB]);
@@ -72,13 +66,15 @@ export const useCapturedImages = () => {
     try {
       chrome.runtime.sendMessage({ type: "DELETE_IMAGE", imageId: imageUrl });
 
-      // Compute new images and count outside of a nested setState call
-      setImages((prevImages) => {
-        const updated = prevImages.filter((img) => img.url !== imageUrl);
-        // update count separately (keeps updates clear and avoids nested setState)
-        setImageCount(updated.length);
-        return updated;
-      });
+      if (isMounted.current) {
+        // Compute new images and count outside of a nested setState call
+        setImages((prevImages) => {
+          const updated = prevImages.filter((img) => img.url !== imageUrl);
+          // update count separately (keeps updates clear and avoids nested setState)
+          setImageCount(updated.length);
+          return updated;
+        });
+      }
     } catch (error) {
       console.error("Error deleting image:", error);
     }
@@ -87,8 +83,10 @@ export const useCapturedImages = () => {
   const clearAllImages = async () => {
     try {
       chrome.runtime.sendMessage({ type: "CLEAR_CAPTURED_IMAGES" });
-      setImages([]);
-      setImageCount(0);
+      if (isMounted.current) {
+        setImages([]);
+        setImageCount(0);
+      }
     } catch (error) {
       console.error("Error clearing images:", error);
     }

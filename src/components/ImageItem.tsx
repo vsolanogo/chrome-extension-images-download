@@ -32,7 +32,7 @@ export const ImageItem: React.FC<ImageItemProps> = ({
   })();
 
   const extractFilename = (
-    originalLast: string
+    originalLast: string,
   ): { base: string; ext: string } => {
     let base = "image";
     let ext = "jpg";

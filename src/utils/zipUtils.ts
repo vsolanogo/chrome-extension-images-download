@@ -117,7 +117,6 @@ export const createZipFromCapturedImages = async (
       {
         type: "blob",
         compression: ZIP_CONFIG.COMPRESSION,
-        compressionOptions: { level: ZIP_CONFIG.COMPRESSION_LEVEL },
       },
       (metadata) => {
         // Report real progress from JSZip, scaled to overall operation

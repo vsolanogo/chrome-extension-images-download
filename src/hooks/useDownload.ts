@@ -1,31 +1,12 @@
 import { useState, useEffect } from "react";
-
-/* ---------- Hook ---------- */
-
-interface DownloadProgress {
-  isDownloading: boolean;
-  progress: number | null;
-  currentChunk: number | null;
-  totalChunks: number | null;
-  message: string;
-}
-
-// Define the CapturedImage interface locally or import as needed
-interface CapturedImage {
-  url: string;
-  tabId: number;
-  timestamp: number;
-  fullData?: Blob;
-  thumbnailData?: string;
-  width?: number;
-  height?: number;
-  fileSize?: number;
-}
+import { useIsMounted } from "./useIsMounted";
+import { DownloadProgress, CapturedImage } from "../types";
 
 export const useDownload = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [onBackgroundProgressUpdate, setOnBackgroundProgressUpdate] =
     useState<(progress: DownloadProgress) => void>();
+  const isMounted = useIsMounted();
 
   // Listen for background ZIP completion updates
   useEffect(() => {
@@ -34,7 +15,7 @@ export const useDownload = () => {
       _: chrome.runtime.MessageSender,
     ) => {
       if (message.type === "ZIP_DOWNLOAD_COMPLETE") {
-        if (message.success) {
+        if (message.success && isMounted.current) {
           onBackgroundProgressUpdate?.({
             isDownloading: false,
             progress: 100,
@@ -44,17 +25,21 @@ export const useDownload = () => {
           });
           // Clear after a short delay
           setTimeout(() => {
-            onBackgroundProgressUpdate?.({
-              isDownloading: false,
-              progress: null,
-              currentChunk: null,
-              totalChunks: null,
-              message: "",
-            });
+            if (isMounted.current) {
+              onBackgroundProgressUpdate?.({
+                isDownloading: false,
+                progress: null,
+                currentChunk: null,
+                totalChunks: null,
+                message: "",
+              });
+            }
           }, 2000);
         }
-        setIsDownloading(false);
-      } else if (message.type === "ZIP_DOWNLOAD_ERROR") {
+        if (isMounted.current) {
+          setIsDownloading(false);
+        }
+      } else if (message.type === "ZIP_DOWNLOAD_ERROR" && isMounted.current) {
         onBackgroundProgressUpdate?.({
           isDownloading: false,
           progress: 0,
@@ -71,7 +56,7 @@ export const useDownload = () => {
     return () => {
       chrome.runtime.onMessage.removeListener(handleBackgroundMessage);
     };
-  }, []);
+  }, [isMounted, onBackgroundProgressUpdate]);
 
   // Store the progress callback to access it in the useEffect
 
@@ -106,7 +91,7 @@ export const useDownload = () => {
       if (!response) {
         // If no response, that's OK - the background process is async
         console.log("ZIP download started in background");
-      } else if (response.success === false) {
+      } else if (response.success === false && isMounted.current) {
         console.error("Error starting ZIP download:", response.error);
         onProgress?.({
           isDownloading: false,
@@ -118,13 +103,15 @@ export const useDownload = () => {
       }
     } catch (error: any) {
       console.error("Error sending ZIP download message to background:", error);
-      onProgress?.({
-        isDownloading: false,
-        progress: 0,
-        currentChunk: null,
-        totalChunks: null,
-        message: error.message || "Error occurred during download.",
-      });
+      if (isMounted.current) {
+        onProgress?.({
+          isDownloading: false,
+          progress: 0,
+          currentChunk: null,
+          totalChunks: null,
+          message: error.message || "Error occurred during download.",
+        });
+      }
       setIsDownloading(false);
     }
   };
