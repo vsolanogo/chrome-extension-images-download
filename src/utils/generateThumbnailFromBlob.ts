@@ -157,13 +157,24 @@ export async function generateThumbnailFromBlob(
       return dataUrl;
     }
   } catch (finalErr) {
-    // If everything fails (e.g., canvas was tainted by external SVG resources), fallback to original SVG data URL if available
+    console.error("Failed to generate thumbnail:", finalErr);
+
     if (svg) {
-      const rawSvg = await readSvgText(blob);
-      if (rawSvg !== null) {
-        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(rawSvg);
+      try {
+        const rawSvg = await readSvgText(blob);
+        if (rawSvg !== null) {
+          return (
+            "data:image/svg+xml;charset=utf-8," + encodeURIComponent(rawSvg)
+          );
+        }
+      } catch (svgErr) {
+        console.error("SVG fallback also failed:", svgErr);
       }
     }
-    throw finalErr;
+
+    // Return a placeholder instead of breaking everything
+    return placeholder;
   }
 }
+
+const placeholder = `data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="100%" height="100%" fill="#ccc"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="10">Error</text></svg>`;
