@@ -1,10 +1,10 @@
 // contentScript.ts
 console.info("contentScript is running");
 
-type CaptureMessage = {
+interface CaptureMessage {
   type: "CHECK_AND_CAPTURE_IMAGE";
   url: string;
-};
+}
 
 // Prevent sending the same URL repeatedly
 const seenUrls = new Set<string>();
