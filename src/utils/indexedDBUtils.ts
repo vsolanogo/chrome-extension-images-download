@@ -155,8 +155,8 @@ export async function loadAllImagesMetadata(): Promise<
     req.onsuccess = () => {
       const allImages = (req.result as CapturedImage[]) ?? [];
       // Map to exclude fullData to only return metadata
-      const metadataOnly = allImages.map((img) => {
-        const { fullData, ...metadata } = img;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const metadataOnly = allImages.map(({ fullData: _fullData, ...metadata }) => {
         return metadata;
       });
       resolve(metadataOnly);

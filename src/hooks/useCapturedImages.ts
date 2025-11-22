@@ -22,12 +22,13 @@ export const useCapturedImages = () => {
   }, []);
 
   // Safe setter that updates state only if still mounted
+   
   const loadImagesFromIndexedDB = useCallback(async () => {
     const { metadata, count } = await fetchImages();
     if (!isMounted.current) return;
     setImages(metadata);
     setImageCount(count);
-  }, [fetchImages, isMounted.current]);
+  }, [fetchImages, isMounted]);
 
   useEffect(() => {
     let isMountedLocal = true;
@@ -44,9 +45,12 @@ export const useCapturedImages = () => {
 
     // Listener for runtime messages
     const messageListener = (
-      message: any,
-      _sender?: any,
-      _sendResponse?: any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      message: { type?: string; [key: string]: any },
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      _sender?: chrome.runtime.MessageSender,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
+      _sendResponse?: (response?: any) => void,
     ) => {
       if (message?.type === "IMAGE_CAPTURED" && isMounted.current) {
         loadImagesFromIndexedDB();
@@ -59,7 +63,7 @@ export const useCapturedImages = () => {
       isMountedLocal = false;
       chrome.runtime.onMessage.removeListener(messageListener);
     };
-  }, [loadImagesFromIndexedDB]);
+  }, [fetchImages, loadImagesFromIndexedDB, isMounted]);
 
   // Function to delete an image (updates state locally, calls background)
   const deleteImage = async (imageUrl: string) => {

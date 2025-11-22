@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useIsMounted } from "./useIsMounted";
 import { DownloadProgress, CapturedImage } from "../types";
+import { TIMING_CONFIG } from "../constants";
 
 export const useDownload = () => {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -11,8 +12,9 @@ export const useDownload = () => {
   // Listen for background ZIP completion updates
   useEffect(() => {
     const handleBackgroundMessage = (
-      message: any,
-      _: chrome.runtime.MessageSender,
+      message: { type: string; success?: boolean; error?: string },
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      _sender: chrome.runtime.MessageSender,
     ) => {
       if (message.type === "ZIP_DOWNLOAD_COMPLETE") {
         if (message.success && isMounted.current) {
@@ -34,7 +36,7 @@ export const useDownload = () => {
                 message: "",
               });
             }
-          }, 2000);
+          }, TIMING_CONFIG.BADGE_RESET_DELAY_MS);
         }
         if (isMounted.current) {
           setIsDownloading(false);
@@ -101,7 +103,7 @@ export const useDownload = () => {
           message: response.error || "Error occurred during download.",
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending ZIP download message to background:", error);
       if (isMounted.current) {
         onProgress?.({
@@ -109,7 +111,7 @@ export const useDownload = () => {
           progress: 0,
           currentChunk: null,
           totalChunks: null,
-          message: error.message || "Error occurred during download.",
+          message: (error as Error).message || "Error occurred during download.",
         });
       }
       setIsDownloading(false);

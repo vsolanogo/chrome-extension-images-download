@@ -78,6 +78,7 @@ function observeForNewImages() {
 }
 
 /** Simple debounce helper for refresh requests. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<T extends (...args: any[]) => void>(fn: T, wait = 200) {
   let timer: number | undefined;
   return (...args: Parameters<T>) => {
@@ -93,7 +94,8 @@ capturePageImages();
 observeForNewImages();
 
 // Listen for commands from the background script
-chrome.runtime.onMessage.addListener((message: any, _sender, _sendResponse) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+chrome.runtime.onMessage.addListener((message: { type?: string }, _sender, _sendResponse) => {
   if (message?.type === "REFRESH_PAGE_IMAGES") {
     debouncedCapture();
   }

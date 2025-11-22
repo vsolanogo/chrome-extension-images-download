@@ -284,6 +284,7 @@ async function handleZipDownload() {
     const zipBlobs = await createZipFromCapturedImages(
       JSZip,
       allImages,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       (progress: number, _message: string) => {
         chrome.action.setBadgeText({ text: `${progress}%` });
         chrome.action.setBadgeBackgroundColor({ color: BADGE_COLORS.PROGRESS });
@@ -293,11 +294,11 @@ async function handleZipDownload() {
     await updateBadge();
     await downloadZipBlobs(zipBlobs);
     notifyZipDownloadComplete(true);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in handleZipDownload:", error);
     notifyZipDownloadComplete(
       false,
-      error.message || "An unknown error occurred",
+      (error as Error).message || "An unknown error occurred",
     );
 
     throw error;
@@ -309,7 +310,7 @@ async function handleZipDownload() {
  * Handles CLEAR_CAPTURED_IMAGES message
  */
 async function handleClearCapturedImages(
-  sendResponse: (response: any) => void,
+  sendResponse: (response: { type: string; success: boolean; error?: string }) => void,
 ) {
   try {
     await clearAllImages();
@@ -325,8 +326,8 @@ async function handleClearCapturedImages(
  * Handles DELETE_IMAGE message
  */
 async function handleDeleteImage(
-  message: any,
-  sendResponse: (response: any) => void,
+  message: { imageId: string },
+  sendResponse: (response: { type: string; success: boolean; error?: string }) => void,
 ) {
   const imageId = message.imageId;
   try {
@@ -343,8 +344,8 @@ async function handleDeleteImage(
  * Handles CHECK_AND_CAPTURE_IMAGE message
  */
 async function handleCheckAndCaptureImage(
-  message: any,
-  sendResponse: (response: any) => void,
+  message: { url: string; tabId: number },
+  sendResponse: (response: { type: string; success: boolean; error?: string }) => void,
 ) {
   const { url, tabId } = message;
   if (url) {
@@ -361,7 +362,7 @@ async function handleCheckAndCaptureImage(
  * Handles ZIP_AND_DOWNLOAD_ALL_IMAGES message
  */
 async function handleZipAndDownloadAllImages(
-  sendResponse: (response: any) => void,
+  sendResponse: (response: { type: string; success: boolean; error?: string }) => void,
 ) {
   if (isZipOperationRunning) {
     console.log("ZIP operation already in progress, ignoring request");
@@ -379,13 +380,13 @@ async function handleZipAndDownloadAllImages(
     await handleZipDownload();
     isZipOperationRunning = false;
     sendResponse({ type: "ZIP_DOWNLOAD_COMPLETE", success: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error during ZIP download:", error);
     isZipOperationRunning = false;
     sendResponse({
       type: "ZIP_DOWNLOAD_COMPLETE",
       success: false,
-      error: error.message,
+      error: (error as Error).message,
     });
   }
 }
@@ -473,7 +474,8 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle context menu clicks
-chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+chrome.contextMenus.onClicked.addListener(async (info: chrome.contextMenus.OnClickData, _tab) => {
   if (info.menuItemId === CONTEXT_MENU_IDS.CLEAR_ALL_CAPTURED_IMAGES) {
     try {
       await clearAllImages();

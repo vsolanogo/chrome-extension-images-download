@@ -85,7 +85,7 @@ export const createZipFromCapturedImages = async (
         const urlExt = image.url.split(".").pop()?.toLowerCase();
         if (
           urlExt &&
-          EXTENSION_CONFIG.SUPPORTED_IMAGE_EXTENSIONS.includes(urlExt as any)
+          EXTENSION_CONFIG.SUPPORTED_IMAGE_EXTENSIONS.includes(urlExt as typeof EXTENSION_CONFIG.SUPPORTED_IMAGE_EXTENSIONS[number])
         ) {
           ext = urlExt === "jpeg" ? "jpg" : urlExt;
         }
