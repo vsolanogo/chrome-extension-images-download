@@ -1,10 +1,4 @@
-interface DownloadProgress {
-  isDownloading: boolean;
-  progress: number | null;
-  currentChunk: number | null;
-  totalChunks: number | null;
-  message: string;
-}
+import { DownloadProgress } from "../types";
 
 interface ControlsProps {
   onClearAll: () => void;

@@ -87,3 +87,9 @@ export const DEFAULT_CONFIG = {
   FILENAME_BASE: "image",
   FILENAME_SEPARATOR: "_",
 } as const;
+
+// Timing constants
+export const TIMING_CONFIG = {
+  BADGE_RESET_DELAY_MS: 2000,
+  DOWNLOAD_CLEANUP_DELAY_MS: 500,
+} as const;

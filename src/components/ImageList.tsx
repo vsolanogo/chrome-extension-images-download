@@ -1,8 +1,8 @@
-import { CapturedImage } from "../utils/indexedDBUtils";
+import { ImageMetadata } from "../types";
 import { ImageItem } from "./ImageItem";
 
 interface ImageListProps {
-  images: CapturedImage[];
+  images: ImageMetadata[];
   onDelete: (url: string) => void;
   showUrls?: boolean;
   urlLength?: number;
@@ -20,7 +20,6 @@ export const ImageList: React.FC<ImageListProps> = ({
   itemClassName = "",
   emptyMessage = "No images captured yet. Browse the web to start capturing images.",
 }) => {
-  console.log(images);
   return (
     <div className={`${className} image-list`}>
       {images.length > 0 ? (

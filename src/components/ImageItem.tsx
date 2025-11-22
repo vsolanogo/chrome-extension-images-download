@@ -1,4 +1,6 @@
-import { CapturedImage, loadImageBlob } from "../utils/indexedDBUtils";
+import { CapturedImage } from "../types";
+import { loadImageBlob } from "../utils/indexedDBUtils";
+import { TIMING_CONFIG } from "../constants";
 
 interface ImageItemProps {
   image: CapturedImage;
@@ -63,7 +65,10 @@ export const ImageItem: React.FC<ImageItemProps> = ({
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 500);
+        setTimeout(
+          () => URL.revokeObjectURL(blobUrl),
+          TIMING_CONFIG.DOWNLOAD_CLEANUP_DELAY_MS,
+        );
         return;
       }
     } catch (err) {

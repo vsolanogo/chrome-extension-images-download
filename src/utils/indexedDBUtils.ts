@@ -1,19 +1,9 @@
 import { generateThumbnailFromBlob } from "./generateThumbnailFromBlob";
+import { CapturedImage } from "../types";
+export type { CapturedImage };
 const DB_NAME = "CapturedImagesDB" as const;
 const DB_VERSION = 1 as const; // Simplified to version 1 since no migration needed
 const STORE_NAME = "capturedImages" as const;
-
-export interface CapturedImage {
-  url: string; // Now the primary key
-  tabId: number;
-  timestamp: number;
-  fullData?: Blob; // Store the full image as a Blob
-  thumbnailData?: string; // Store thumbnail as base64 for easy display
-  // Optional: metadata about the image
-  width?: number;
-  height?: number;
-  fileSize?: number;
-}
 
 /**
  * Load image data for a specific URL

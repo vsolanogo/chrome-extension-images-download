@@ -9,12 +9,17 @@ import {
   loadAllImages,
   deleteImage,
   clearAllImages,
-  CapturedImage,
   loadImageByUrl,
   countImages,
 } from "../utils/indexedDBUtils";
 import { createZipFromCapturedImages } from "../utils/zipUtils";
-import { BADGE_COLORS, MESSAGE_TYPES, CONTEXT_MENU_IDS } from "../constants";
+import {
+  BADGE_COLORS,
+  MESSAGE_TYPES,
+  CONTEXT_MENU_IDS,
+  TIMING_CONFIG,
+} from "../constants";
+import { CapturedImage } from "../types";
 
 // Add a global flag to track if a ZIP operation is currently running
 let isZipOperationRunning = false;
@@ -517,7 +522,7 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
       // Restore the image count on the badge after a short delay
       setTimeout(async () => {
         await updateBadge(); // This will set the badge back to the image count
-      }, 2000);
+      }, TIMING_CONFIG.BADGE_RESET_DELAY_MS);
     } catch (error) {
       console.error("Error in context menu ZIP download:", error);
       isZipOperationRunning = false;
@@ -529,7 +534,7 @@ chrome.contextMenus.onClicked.addListener(async (info, _tab) => {
       // Restore the image count on the badge after a short delay
       setTimeout(async () => {
         await updateBadge(); // This will set the badge back to the image count
-      }, 2000);
+      }, TIMING_CONFIG.BADGE_RESET_DELAY_MS);
     }
   }
 });
